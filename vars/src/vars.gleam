@@ -10,7 +10,7 @@ import gleam/otp/actor
 // @external(erlang, "erlang", "statistics")
 // pub fn statistics(stat: String) -> Int
 
-const actor_number = 50
+const actor_number = 6000
 
 // First step of implementing the stack Actor is to define the message type that
 // it can receive.
