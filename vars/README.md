@@ -1,24 +1,6 @@
-# vars
+# Project 1
 
-[![Package Version](https://img.shields.io/hexpm/v/vars)](https://hex.pm/packages/vars)
-[![Hex Docs](https://img.shields.io/badge/hex-docs-ffaff3)](https://hexdocs.pm/vars/)
-
-```sh
-gleam add vars@1
-```
-```gleam
-import vars
-
-pub fn main() -> Nil {
-  // TODO: An example of the project in use
-}
-```
-
-Further documentation can be found at <https://hexdocs.pm/vars>.
-
-## Development
-
-```sh
-gleam run   # Run the project
-gleam test  # Run the tests
-```
+- The size of the work unit that we chose to use for our implementation is dynamic and based on the number of actors we want to use. For example, if we want to have 1000 actors, the size of the work unit for an N of 10000 would be 10. We determined that about 900 actors yields best results for a 4 core computer and about 6000 for 24-32 processors through trial and error taking in mind time metrics
+- When we ran "lukas 1000000 4", we did not get any results, which we thought was strange. However, for the other 2 examples from the project requirements (and other test cases when using k of 2 or 24), we did get a results with several solutions, so we believe that our code is correct.
+- For a small number such as 1,000,000 and 4, the ratio of CPU Time to Real Time was approximately 1.31. However, for much bigger numbers such as 1,000,000,000 or higher, we observed up to an 8x speedup — equal to the number of logical processors that the computer we tested on had (4 cores, 8 logical processors). We used the linux `time` command for testing.
+- The largest problem we solved based on time constraint was n= 10,000,000,000 and k = 24, which took about 13.5 minutes to compute on another computer with 24 cores.

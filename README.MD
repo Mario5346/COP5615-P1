@@ -1,6 +1,0 @@
-Project 1
-
-- The size of the work unit that we chose to use for our implementation is dynamic and based on the number of actors we want to use. For example, if we want to have 1000 actors, the size of the work unit for an N of 10000 would be 10. We determined that about 900 actors yields best results for a 4 core computer and about 6000 for 24-32 processors throug trial and error taking in mind time metrics
-- When we ran "lukas 1000000 4", we did not get any results, which we thought was weird. However, for the other 2 examples (or when using k of 2 or 24) we did get a lot of results so I believe that no results is still the corrent ammount.
-- For a small number such as 1,000,000 and 4, the ratio of CPU Time to Real Time was approximatrely 1.31. However, for much bigger numbers such as 1,000,000,000 or more, we observed up to an 8x speedup, which is the number of logical processors that the computer we tested on had (4 cores, 8 logical processors).
-- The largest problem we anaged to solve based on time constraints were n= 10,000,000,000 and k = 24, which took about 13.5 minutes to complete on a different computer. 
