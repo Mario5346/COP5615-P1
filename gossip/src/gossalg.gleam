@@ -1,13 +1,9 @@
-import argv
 import gleam/erlang/process
 import gleam/int
-import gleam/io
 import gleam/list
 import gleam/order
 import gleam/otp/actor
 import gleam/pair
-import imp3d
-import threed
 
 pub type Message(e) {
   Shutdown

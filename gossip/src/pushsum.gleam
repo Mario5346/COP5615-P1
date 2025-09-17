@@ -1,15 +1,8 @@
-import argv
 import gleam/erlang/process
-import gleam/float
 import gleam/int
-import gleam/io
 import gleam/list
 import gleam/order
 import gleam/otp/actor
-import gleam/pair
-
-@external(erlang, "math", "ceil")
-pub fn ceiling(x: Float) -> Float
 
 pub fn initialize_actors_push_sum(
   start: Int,
