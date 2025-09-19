@@ -1,17 +1,18 @@
+import gleam/dict
 import gleam/erlang/process
 import gleam/int
 import gleam/list
 import gleam/order
 import gleam/otp/actor
+import gleam/otp/supervision
 import gleam/pair
 
 pub type Message(e) {
   Shutdown
 
   AddNeighbor(neighbor: process.Subject(Result(e, Nil)))
-  //   Sequence(start: Int, end: Int, k: Int)
 
-  //   GetSequences(reply_with: process.Subject(Result(e, nil)))
+  RegisterActor(neighbor: process.Subject(Message(e)))
 }
 
 fn gossip_handler(
@@ -26,24 +27,21 @@ fn gossip_handler(
       let new_state = #(list.append(pair.first(state), [neighbor]), "")
       actor.continue(new_state)
     }
-    // Sequence(start, end, k) -> {
-    //   case end {
-    //     0 -> {
-    //       //process.send(client, Error(Nil))
-    //       actor.continue(state)
-    //     }
-    //     _ -> {
-    //       let new_state = find_sequence(start, end, k, [])
-    //       //process.send(client, Ok(new_state))
-    //       actor.continue(new_state)
-    //     }
-    //   }
-    // }
-    // GetSequences(client) -> {
-    //   actor.send(client, list)
-    //   actor.continue(state)
-    // }
+
+    RegisterActor(client) -> {
+      let subject = process.new_subject()
+      actor.send(client, Message(subject))
+      actor.continue(#([], ""))
+    }
   }
+}
+
+pub fn register_actor(
+  client: process.Subject(process.Subject(Result(e, Nil))),
+) -> actor.Next(process.Subject(process.Subject(Result(e, Nil))), Message(e)) {
+  let subject = process.new_subject()
+  actor.send(client, subject)
+  actor.continue(client)
 }
 
 pub fn initialize_gossip(
@@ -54,10 +52,12 @@ pub fn initialize_gossip(
   case int.compare(start, num_nodes) {
     order.Gt -> []
     _ -> {
+      let subject = process.new_subject()
       let assert Ok(actor) =
         actor.new(#([], "")) |> actor.on_message(gossip_handler) |> actor.start
-      let subject = actor.data
-      let new_nodes = list.append(nodes, [subject])
+      process.send(subject, RegisterActor(subject))
+
+      //let new_nodes = list.append(nodes, [subject])
 
       let final = initialize_gossip(start + 1, num_nodes, new_nodes)
       final
