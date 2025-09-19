@@ -8,6 +8,9 @@ import gossalg
 import pushsum
 import threed
 
+@external(erlang, "maps", "new")
+pub fn new() -> Dict(k, v)
+
 pub fn main() {
   case argv.load().arguments {
     ["project2", first, second, third] -> {
@@ -56,21 +59,19 @@ pub fn main() {
           // let args = list.append(args, [third])
 
           // set up actors
-          let actors_list = []
-          case third {
+          let actors_dict = case third {
             "gossip" -> {
-              let actors_list = gossalg.initialize_gossip(1, nodes, [])
+              gossalg.initialize_gossip(1, nodes, new())
             }
             "push-sum" -> {
-              let actors_list = pushsum.initialize_actors_push_sum(1, nodes, [])
+              pushsum.initialize_actors_push_sum(1, nodes, new())
             }
             _ -> {
               io.println("INVALID ALGORITHM")
+              new()
             }
           }
-          io.println(
-            "Actors initialized: " <> int.to_string(list.length(actors_list)),
-          )
+          io.println("Actors initialized: " <> size(actors_dict))
 
           // set up topology
           case second {

@@ -7,7 +7,7 @@ import gleam/otp/actor
 pub fn initialize_actors_push_sum(
   start: Int,
   n: Int,
-  nodes: List(process.Subject),
+  nodes: Dict(Int, process.Subject),
 ) {
   case int.compare(start, n) {
     order.Gt -> []
@@ -15,7 +15,7 @@ pub fn initialize_actors_push_sum(
       let assert Ok(actor) =
         actor.new([]) |> actor.on_message(push_sum_handler) |> actor.start
       let subject = actor.data
-      let new_nodes = list.append(nodes, [subject])
+      let new_nodes = insert(nodes, start, subject)
 
       let final = initialize_actors_push_sum(start + 1, n, new_nodes)
       final
