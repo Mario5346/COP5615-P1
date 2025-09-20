@@ -1,15 +1,13 @@
 import argv
+import gleam/dict
 import gleam/erlang/process
 import gleam/int
 import gleam/io
-import gleam/list
 import gleam/otp/actor
 import gossalg
+import imp3d
 import pushsum
 import threed
-
-@external(erlang, "maps", "new")
-pub fn new() -> Dict(k, v)
 
 pub fn main() {
   case argv.load().arguments {
@@ -60,18 +58,20 @@ pub fn main() {
 
           // set up actors
           let actors_dict = case third {
-            "gossip" -> {
-              gossalg.initialize_gossip(1, nodes, new())
-            }
+            // "gossip" -> {
+            //   gossalg.initialize_gossip(1, nodes, dict.new())
+            // }
             "push-sum" -> {
-              pushsum.initialize_actors_push_sum(1, nodes, new())
+              pushsum.initialize_actors_push_sum(0, nodes, dict.new())
             }
             _ -> {
               io.println("INVALID ALGORITHM")
-              new()
+              dict.new()
             }
           }
-          io.println("Actors initialized: " <> size(actors_dict))
+          io.println(
+            "Actors initialized: " <> int.to_string(dict.size(actors_dict)),
+          )
 
           // set up topology
           case second {
@@ -80,7 +80,7 @@ pub fn main() {
             }
             "3D" -> {
               io.println("topology is 3D")
-              threed.setup_3d_topology(actors_list)
+              threed.setup_3d_topology(actors_dict)
             }
             "line" -> {
               io.println("topology is line")
