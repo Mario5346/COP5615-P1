@@ -29,6 +29,8 @@ fn gossip_handler(
           |> dict.insert(dict.size(pair.first(state)) + 1, neighbor),
         pair.second(state),
       )
+      io.print("added neighbor")
+      echo dict.size(pair.first(state))
       actor.continue(new_state)
     }
 
@@ -75,6 +77,7 @@ pub fn initialize_gossip(
   case int.compare(start, num_nodes) {
     order.Gt -> dict.new()
     _ -> {
+      //io.print("INITIALIZING GOSSIP   ")
       let subject = process.new_subject()
       let assert Ok(actor) =
         actor.new(#(dict.new(), 0))
@@ -85,9 +88,11 @@ pub fn initialize_gossip(
       //process.send(subject, RegisterActor(subject))
 
       let new_nodes = initialize_gossip(start + 1, num_nodes, nodes)
+      // new_nodes |> dict.insert(start, sub)
+      let final = dict.insert(new_nodes, start, sub)
 
-      new_nodes |> dict.insert(start, sub)
-      new_nodes
+      //echo new_nodes
+      final
     }
   }
 }
@@ -96,30 +101,41 @@ pub fn initialize_gossip(
 
 // }
 
-fn full_network(start: Int, nodes: dict.Dict(Int, process.Subject(Message(e)))) {
-  case int.compare(start + 1, dict.size(nodes)) {
+pub fn full_network(
+  start: Int,
+  nodes: dict.Dict(Int, process.Subject(Message(e))),
+) {
+  case int.compare(start, dict.size(nodes)) {
     order.Gt -> Nil
     _ -> {
       let curr = start
       dict.each(nodes, fn(k, v) {
         case k {
-          start -> Nil
+          // curr ->
+          //   io.println("- NOT ADDED NEIGHBORS TO " <> int.to_string(start))
           _ -> {
             let subject = nodes |> dict.get(start)
             case subject {
-              Ok(result) -> process.send(result, AddNeighbor(v))
+              Ok(result) -> {
+                process.send(result, AddNeighbor(v))
+                // io.println("-- ADDED NEIGHBORS TO " <> int.to_string(start))
+              }
               Error(e) -> Nil
             }
           }
         }
       })
+
       full_network(start + 1, nodes)
     }
   }
 }
 
-fn line_network(start: Int, nodes: dict.Dict(Int, process.Subject(Message(e)))) {
-  case int.compare(start + 1, dict.size(nodes)) {
+pub fn line_network(
+  start: Int,
+  nodes: dict.Dict(Int, process.Subject(Message(e))),
+) {
+  case int.compare(start, dict.size(nodes)) {
     order.Gt -> Nil
     _ -> {
       let curr = start
@@ -140,6 +156,7 @@ fn line_network(start: Int, nodes: dict.Dict(Int, process.Subject(Message(e)))) 
         }
         Error(e) -> Nil
       }
+      io.print("-- ADDED NEIGHBORS TO " <> int.to_string(start))
       line_network(start + 1, nodes)
     }
   }

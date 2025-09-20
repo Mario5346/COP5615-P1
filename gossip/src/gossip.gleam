@@ -1,15 +1,17 @@
 import argv
+import gleam/dict
 import gleam/erlang/process
 import gleam/int
 import gleam/io
 import gleam/list
 import gleam/otp/actor
 import gossalg
-import pushsum
+
+// import pushsum
 import threed
 
 @external(erlang, "maps", "new")
-pub fn new() -> Dict(k, v)
+pub fn new() -> dict.Dict(k, v)
 
 pub fn main() {
   case argv.load().arguments {
@@ -26,18 +28,18 @@ pub fn main() {
               io.println("topology is full")
               nodes
             }
-            "3D" -> {
-              io.println("topology is 3D")
-              threed.number_of_3d_nodes(nodes)
-            }
+            // "3D" -> {
+            //   io.println("topology is 3D")
+            //   threed.number_of_3d_nodes(nodes)
+            // }
             "line" -> {
               io.println("topology is line")
               nodes
             }
-            "imp3D" -> {
-              io.println("topology is full")
-              threed.number_of_3d_nodes(nodes)
-            }
+            // "imp3D" -> {
+            //   io.println("topology is full")
+            //   threed.number_of_3d_nodes(nodes)
+            // }
             _ -> {
               io.println("INVALID TOPOLOGY")
               nodes
@@ -63,26 +65,30 @@ pub fn main() {
             "gossip" -> {
               gossalg.initialize_gossip(1, nodes, new())
             }
-            "push-sum" -> {
-              pushsum.initialize_actors_push_sum(1, nodes, new())
-            }
+            // "push-sum" -> {
+            //   pushsum.initialize_actors_push_sum(1, nodes, new())
+            // }
             _ -> {
               io.println("INVALID ALGORITHM")
               new()
             }
           }
-          io.println("Actors initialized: " <> size(actors_dict))
+          io.println(
+            "Actors initialized: " <> int.to_string(dict.size(actors_dict)),
+          )
 
           // set up topology
           case second {
             "full" -> {
+              gossalg.full_network(1, actors_dict)
               io.println("topology is full")
             }
-            "3D" -> {
-              io.println("topology is 3D")
-              threed.setup_3d_topology(actors_list)
-            }
+            // "3D" -> {
+            //   io.println("topology is 3D")
+            //   threed.setup_3d_topology(actors_list)
+            // }
             "line" -> {
+              gossalg.line_network(1, actors_dict)
               io.println("topology is line")
             }
             "imp3D" -> {
