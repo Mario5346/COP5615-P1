@@ -1,6 +1,7 @@
 import gleam/dict
 import gleam/erlang/process
 import gleam/int
+import gleam/io
 import gleam/order
 import gleam/otp/actor
 import gleam/pair
@@ -34,9 +35,18 @@ fn gossip_handler(
     Gossip(message) -> {
       let selected = int.random(dict.size(pair.first(state)))
       let subject = pair.first(state) |> dict.get(selected)
+      let count = pair.second(state) + 1
+      let new_state = pair.new(pair.first(state), count)
       case subject {
-        Ok(result) -> actor.send(result, message)
-        Error(e) -> actor.send(process.new_subject(), message)
+        Ok(result) -> {
+          actor.send(result, Gossip(message))
+          io.print("sent message to neighbor: " <> int.to_string(selected))
+          actor.continue(new_state)
+        }
+        Error(e) -> {
+          actor.send(process.new_subject(), message)
+          actor.continue(new_state)
+        }
       }
 
       actor.continue(state)
