@@ -3,8 +3,12 @@ import gleam/dict
 import gleam/erlang/process
 import gleam/int
 import gleam/io
-import gleam/list
 import gleam/otp/actor
+
+// import gleam/list
+// import gleam/otp/actor
+// import gleam/time/duration
+// import gleam/time/timestamp
 import gossalg
 
 // import pushsum
@@ -12,6 +16,17 @@ import threed
 
 @external(erlang, "maps", "new")
 pub fn new() -> dict.Dict(k, v)
+
+fn check(subject: process.Subject(gossalg.Message(e))) {
+  // process.sleep(10)
+  let end = process.call(subject, 10_000, gossalg.Finished)
+  // io.println("-----------------")
+
+  case end {
+    "NO" -> check(subject)
+    _ -> end
+  }
+}
 
 pub fn main() {
   case argv.load().arguments {
@@ -76,6 +91,7 @@ pub fn main() {
           io.println(
             "Actors initialized: " <> int.to_string(dict.size(actors_dict)),
           )
+          //echo actors_dict
 
           // set up topology
           case second {
@@ -98,6 +114,20 @@ pub fn main() {
               io.println("INVALID TOPOLOGY")
             }
           }
+          io.println("STARTING ALGORITHM")
+          let message = "this is my message"
+          let assert Ok(first) = dict.get(actors_dict, 1)
+          // case getter {
+          //   Ok(first) -> process.send(first, gossalg.Gossip(message))
+          //   Error(_) -> Nil
+          // }
+          process.send(first, gossalg.Gossip(message))
+          io.println("WAITING FOR ALGORITHM")
+          //let end = process.call(first, 1000, gossalg.Finished)
+          let end = check(first)
+          io.println("ALGORITHM DONE")
+          //dict.each(actors_dict, fn(k, v) { actor.send(v, gossalg.Shutdown) })
+          io.println(end)
         }
         _ -> io.println("n is not int")
       }

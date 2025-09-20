@@ -12,13 +12,18 @@ pub type Message(e) {
   AddNeighbor(neighbor: process.Subject(Message(e)))
 
   // RegisterActor(neighbor: process.Subject(Message(e)))
-  Gossip(message: Message(e))
+  Gossip(message: String)
+
+  Finished(parent: process.Subject(String))
 }
 
 fn gossip_handler(
   state: #(dict.Dict(Int, process.Subject(Message(e))), Int),
   message: Message(e),
 ) -> actor.Next(#(dict.Dict(Int, process.Subject(Message(e))), Int), Message(e)) {
+  let number_of_messages = 10
+  let finished_state = number_of_messages + 1
+
   case message {
     Shutdown -> actor.stop()
 
@@ -29,29 +34,72 @@ fn gossip_handler(
           |> dict.insert(dict.size(pair.first(state)) + 1, neighbor),
         pair.second(state),
       )
-      io.print("added neighbor")
-      echo dict.size(pair.first(state))
+      // io.print("added neighbor")
+      // echo dict.size(pair.first(state))
       actor.continue(new_state)
     }
 
     Gossip(message) -> {
-      let selected = int.random(dict.size(pair.first(state)))
+      let max = dict.size(pair.first(state))
+      let selected = int.random(max - 1) + 1
       let subject = pair.first(state) |> dict.get(selected)
+      //io.println(" SELECTED: " <> int.to_string(selected))
       let count = pair.second(state) + 1
       let new_state = pair.new(pair.first(state), count)
-      case subject {
-        Ok(result) -> {
-          actor.send(result, Gossip(message))
-          io.print("sent message to neighbor: " <> int.to_string(selected))
-          actor.continue(new_state)
+      case count {
+        number_of_messages -> {
+          dict.each(pair.first(state), fn(k, v) {
+            actor.send(v, Gossip("STOP"))
+          })
+          let final_state = pair.new(pair.first(state), finished_state)
+          actor.continue(final_state)
         }
-        Error(e) -> {
-          actor.send(process.new_subject(), message)
-          actor.continue(new_state)
+        finished_state -> {
+          actor.continue(state)
+        }
+        _ -> {
+          case message {
+            "STOP" -> {
+              dict.each(pair.first(state), fn(k, v) {
+                actor.send(v, Gossip("STOP"))
+              })
+              let final_state = pair.new(pair.first(state), finished_state)
+              actor.continue(final_state)
+            }
+            _ -> {
+              case subject {
+                Ok(result) -> {
+                  actor.send(result, Gossip(message))
+                  // io.println(
+                  //   "sent message to neighbor: " <> int.to_string(selected),
+                  // )
+                  //echo pair.second(new_state)
+                  actor.continue(new_state)
+                }
+                Error(e) -> {
+                  // actor.send(process.new_subject(), message)
+                  io.println("ERROR HERE")
+                  actor.continue(new_state)
+                }
+              }
+              actor.continue(new_state)
+            }
+          }
         }
       }
-
-      actor.continue(state)
+    }
+    Finished(parent) -> {
+      case pair.second(state) {
+        finished_state -> {
+          io.println(" STATE " <> int.to_string(pair.second(state)))
+          actor.send(parent, "Actor has Finished")
+          actor.continue(state)
+        }
+        _ -> {
+          actor.send(parent, "NO")
+          actor.continue(state)
+        }
+      }
     }
     // RegisterActor(client) -> {
     //   let subject = process.new_subject()
@@ -156,7 +204,7 @@ pub fn line_network(
         }
         Error(e) -> Nil
       }
-      io.print("-- ADDED NEIGHBORS TO " <> int.to_string(start))
+      //io.print("-- ADDED NEIGHBORS TO " <> int.to_string(start))
       line_network(start + 1, nodes)
     }
   }
