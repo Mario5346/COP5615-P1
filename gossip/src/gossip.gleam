@@ -57,7 +57,7 @@ pub fn main() {
           case third {
             "gossip" -> {
               // set up actors
-              let actors_dict = gossalg.initialize_gossip(1, nodes, dict.new())
+              let actors_dict = gossalg.initialize_gossip(0, nodes, dict.new())
               io.println(
                 "Actors initialized: " <> int.to_string(dict.size(actors_dict)),
               )
@@ -65,13 +65,13 @@ pub fn main() {
               // set up topology
               case second {
                 "full" -> {
-                  full.full_network_gossip(1, actors_dict)
+                  full.full_network_gossip(0, actors_dict)
                 }
                 "3D" -> {
                   threed.setup_3d_topology_gossip(actors_dict)
                 }
                 "line" -> {
-                  line.line_network_gossip(1, actors_dict)
+                  line.line_network_gossip(0, actors_dict)
                 }
                 "imp3D" -> {
                   imp3d.setup_imperfect_3d_topology_gossip(actors_dict)
@@ -84,7 +84,7 @@ pub fn main() {
               // start algorithm
               io.println("Starting gossip")
               let message = "this is my message"
-              let assert Ok(first) = dict.get(actors_dict, 1)
+              let assert Ok(first) = dict.get(actors_dict, 0)
               process.send(first, gossalg.Gossip(message))
               io.println("WAITING FOR ALGORITHM")
               let end = check(first)

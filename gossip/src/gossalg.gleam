@@ -10,6 +10,7 @@ pub type Message(e) {
   Shutdown
 
   AddNeighbor(neighbor: process.Subject(Message(e)))
+
   GetNeighbors(
     reply_to: process.Subject(dict.Dict(Int, process.Subject(Message(e)))),
   )
@@ -17,6 +18,8 @@ pub type Message(e) {
   Gossip(message: String)
 
   Finished(parent: process.Subject(String))
+
+  UpdateNeighbors(source: process.Subject(Message(e)))
 }
 
 fn gossip_handler(
@@ -46,9 +49,13 @@ fn gossip_handler(
       actor.continue(state)
     }
 
+    UpdateNeighbors(source) -> {
+      todo
+    }
+
     Gossip(message) -> {
       let max = dict.size(pair.first(state))
-      let selected = int.random(max - 1) + 1
+      let selected = int.random(max)
       let subject = pair.first(state) |> dict.get(selected)
       //io.println(" SELECTED: " <> int.to_string(selected))
       let count = pair.second(state) + 1
