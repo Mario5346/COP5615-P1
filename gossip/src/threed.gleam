@@ -99,12 +99,12 @@ pub fn assign_neighbor(
     Ok(node1) -> {
       case dict.get(nodes, index2) {
         Ok(node2) -> {
-          io.println(
-            "Assigning neighbor: "
-            <> int.to_string(index1)
-            <> " <-> "
-            <> int.to_string(index2),
-          )
+          // io.println(
+          //   "Assigning neighbor: "
+          //   <> int.to_string(index1)
+          //   <> " <-> "
+          //   <> int.to_string(index2),
+          // )
           process.send(node1, pushsum.AddNeighbor(index2, node2))
           process.send(node2, pushsum.AddNeighbor(index1, node1))
         }
