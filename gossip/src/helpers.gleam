@@ -1,13 +1,8 @@
-import gleam/list
+import gleam/erlang/process
+import gossalg
+import pushsum
 
-pub fn random_element(l: List(Int)) -> Int {
-  case l {
-    [] -> 0
-    _ -> {
-      case list.first(list.sample(l, 1)) {
-        Ok(x) -> x
-        _ -> 0
-      }
-    }
-  }
+pub type SubjectTypes(a) {
+  GossipActor(process.Subject(gossalg.Message(a)))
+  PushSumActor(process.Subject(pushsum.PushSumMessage(a)))
 }

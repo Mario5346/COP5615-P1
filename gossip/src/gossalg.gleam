@@ -10,7 +10,9 @@ pub type Message(e) {
   Shutdown
 
   AddNeighbor(neighbor: process.Subject(Message(e)))
-
+  GetNeighbors(
+    reply_to: process.Subject(dict.Dict(Int, process.Subject(Message(e)))),
+  )
   // RegisterActor(neighbor: process.Subject(Message(e)))
   Gossip(message: String)
 
@@ -37,6 +39,11 @@ fn gossip_handler(
       // io.print("added neighbor")
       // echo dict.size(pair.first(state))
       actor.continue(new_state)
+    }
+
+    GetNeighbors(reply_to) -> {
+      process.send(reply_to, pair.first(state))
+      actor.continue(state)
     }
 
     Gossip(message) -> {

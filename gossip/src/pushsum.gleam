@@ -3,12 +3,12 @@ import gleam/erlang/process
 import gleam/float
 import gleam/int
 import gleam/io
+import gleam/list
 import gleam/order
 import gleam/otp/actor
 import gleam/pair
 import gleam/time/duration
 import gleam/time/timestamp
-import helpers
 
 pub fn initialize_actors_push_sum(
   start: Int,
@@ -69,6 +69,11 @@ pub fn run_push_sum(
 pub type PushSumMessage(e) {
   AddNeighbor(neighbor_id: Int, neighbor: process.Subject(PushSumMessage(e)))
   ReceiveMessage(s: Float, w: Float)
+  GetNeighbors(
+    reply_to: process.Subject(
+      dict.Dict(Int, process.Subject(PushSumMessage(e))),
+    ),
+  )
 }
 
 pub type StateHolder(e) {
@@ -137,7 +142,7 @@ fn push_sum_handler(
           // send half to a random neighbor
           let half_s = new_s /. 2.0
           let half_w = new_w /. 2.0
-          let selected = helpers.random_element(dict.keys(state.neighbors))
+          let selected = random_element(dict.keys(state.neighbors))
           let subject = state.neighbors |> dict.get(selected)
           // io.println(
           //   float.to_string(difference)
@@ -173,6 +178,22 @@ fn push_sum_handler(
             )
           actor.continue(new_state)
         }
+      }
+    }
+    GetNeighbors(reply_to) -> {
+      process.send(reply_to, state.neighbors)
+      actor.continue(state)
+    }
+  }
+}
+
+pub fn random_element(l: List(Int)) -> Int {
+  case l {
+    [] -> 0
+    _ -> {
+      case list.first(list.sample(l, 1)) {
+        Ok(x) -> x
+        _ -> 0
       }
     }
   }

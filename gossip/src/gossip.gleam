@@ -6,8 +6,7 @@ import gleam/io
 import gleam/otp/actor
 import gleam/time/timestamp
 import gossalg
-
-// import imp3d
+import imp3d
 import pushsum
 import threed
 
@@ -44,7 +43,7 @@ pub fn main() {
               nodes
             }
             "imp3D" -> {
-              io.println("topology is full")
+              io.println("topology is imperfect 3D")
               threed.number_of_3d_nodes(nodes)
             }
             _ -> {
@@ -53,9 +52,9 @@ pub fn main() {
             }
           }
 
-          // set up actors
           case third {
             "gossip" -> {
+              // set up actors
               let actors_dict = gossalg.initialize_gossip(1, nodes, dict.new())
               io.println(
                 "Actors initialized: " <> int.to_string(dict.size(actors_dict)),
@@ -69,14 +68,14 @@ pub fn main() {
                 }
                 "3D" -> {
                   io.println("topology is 3D")
-                  // threed.setup_3d_topology(actors_dict)
+                  threed.setup_3d_topology_gossip(actors_dict)
                 }
                 "line" -> {
                   gossalg.line_network(1, actors_dict)
                   io.println("topology is line")
                 }
                 "imp3D" -> {
-                  io.println("topology is full")
+                  imp3d.setup_imperfect_3d_topology_gossip(actors_dict)
                 }
                 _ -> {
                   io.println("INVALID TOPOLOGY")
@@ -119,15 +118,14 @@ pub fn main() {
                   io.println("topology is full")
                 }
                 "3D" -> {
-                  io.println("topology is 3D")
-                  threed.setup_3d_topology(actors_dict)
+                  threed.setup_3d_topology_pushsum(actors_dict)
                 }
                 "line" -> {
                   // gossalg.line_network(1, actors_dict)
                   io.println("topology is line")
                 }
                 "imp3D" -> {
-                  io.println("topology is full")
+                  imp3d.setup_imperfect_3d_topology_pushsum(actors_dict)
                 }
                 _ -> {
                   io.println("INVALID TOPOLOGY")
