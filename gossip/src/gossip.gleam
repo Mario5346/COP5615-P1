@@ -1,4 +1,5 @@
 import argv
+import full
 import gleam/dict
 import gleam/erlang/process
 import gleam/int
@@ -7,6 +8,7 @@ import gleam/otp/actor
 import gleam/time/timestamp
 import gossalg
 import imp3d
+import line
 import pushsum
 import threed
 
@@ -63,16 +65,13 @@ pub fn main() {
               // set up topology
               case second {
                 "full" -> {
-                  gossalg.full_network(1, actors_dict)
-                  io.println("topology is full")
+                  full.full_network_gossip(1, actors_dict)
                 }
                 "3D" -> {
-                  io.println("topology is 3D")
                   threed.setup_3d_topology_gossip(actors_dict)
                 }
                 "line" -> {
-                  gossalg.line_network(1, actors_dict)
-                  io.println("topology is line")
+                  line.line_network_gossip(1, actors_dict)
                 }
                 "imp3D" -> {
                   imp3d.setup_imperfect_3d_topology_gossip(actors_dict)
@@ -114,15 +113,13 @@ pub fn main() {
               // set up topology
               case second {
                 "full" -> {
-                  // gossalg.full_network(1, actors_dict)
-                  io.println("topology is full")
+                  full.full_network_pushsum(0, actors_dict)
                 }
                 "3D" -> {
                   threed.setup_3d_topology_pushsum(actors_dict)
                 }
                 "line" -> {
-                  // gossalg.line_network(1, actors_dict)
-                  io.println("topology is line")
+                  line.line_network_pushsum(0, actors_dict)
                 }
                 "imp3D" -> {
                   imp3d.setup_imperfect_3d_topology_pushsum(actors_dict)

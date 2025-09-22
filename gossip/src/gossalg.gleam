@@ -151,68 +151,6 @@ pub fn initialize_gossip(
     }
   }
 }
-
 // fn set_neighbors(node: process.Subject(Message(e)), nodes: dict.Dict(Int, process.Subject(Message(e)))){
 
 // }
-
-pub fn full_network(
-  start: Int,
-  nodes: dict.Dict(Int, process.Subject(Message(e))),
-) {
-  case int.compare(start, dict.size(nodes)) {
-    order.Gt -> Nil
-    _ -> {
-      let curr = start
-      dict.each(nodes, fn(k, v) {
-        case k {
-          // curr ->
-          //   io.println("- NOT ADDED NEIGHBORS TO " <> int.to_string(start))
-          _ -> {
-            let subject = nodes |> dict.get(start)
-            case subject {
-              Ok(result) -> {
-                process.send(result, AddNeighbor(v))
-                // io.println("-- ADDED NEIGHBORS TO " <> int.to_string(start))
-              }
-              Error(e) -> Nil
-            }
-          }
-        }
-      })
-
-      full_network(start + 1, nodes)
-    }
-  }
-}
-
-pub fn line_network(
-  start: Int,
-  nodes: dict.Dict(Int, process.Subject(Message(e))),
-) {
-  case int.compare(start, dict.size(nodes)) {
-    order.Gt -> Nil
-    _ -> {
-      let curr = start
-      let left = nodes |> dict.get(start - 1)
-      let right = nodes |> dict.get(start + 1)
-      let subject = nodes |> dict.get(start)
-
-      case subject {
-        Ok(result) -> {
-          case left {
-            Ok(l) -> process.send(result, AddNeighbor(l))
-            Error(e) -> Nil
-          }
-          case right {
-            Ok(r) -> process.send(result, AddNeighbor(r))
-            Error(e) -> Nil
-          }
-        }
-        Error(e) -> Nil
-      }
-      //io.print("-- ADDED NEIGHBORS TO " <> int.to_string(start))
-      line_network(start + 1, nodes)
-    }
-  }
-}
