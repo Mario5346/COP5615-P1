@@ -92,6 +92,30 @@ pub fn main() {
               io.println("INVALID TOPOLOGY")
             }
           }
+
+          // start algorithm
+          case third {
+            "gossip" -> {
+              io.println("Starting gossip")
+            }
+            "push-sum" -> {
+              io.println("Starting push-sum")
+              let first_actor = dict.get(actors_dict, 0)
+              case first_actor {
+                Ok(actor) -> {
+                  process.send(actor, pushsum.ReceiveMessage(0.1, 0.1))
+                  io.println("Sent initial message to actor 0")
+                  process.sleep(10_000)
+                }
+                Error(e) -> {
+                  io.println("Failed to get actor 0: " <> "\n")
+                }
+              }
+            }
+            _ -> {
+              io.println("INVALID ALGORITHM")
+            }
+          }
         }
         _ -> io.println("n is not int")
       }
