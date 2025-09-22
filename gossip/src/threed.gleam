@@ -1,8 +1,11 @@
+import gleam/dict
 import gleam/erlang/process
 import gleam/float
 import gleam/int
 import gleam/io
+import gleam/order
 import gleam_community/maths
+import pushsum
 
 @external(erlang, "math", "ceil")
 pub fn ceiling(x: Float) -> Float
@@ -25,9 +28,9 @@ pub fn index_3d_to_1d(x: Int, y: Int, z: Int, dim_length: Int) -> Int {
 }
 
 pub fn setup_3d_topology(
-  nodes: Dict(Int, process.Subject(Result(element, Nil))),
-) -> List(process.Subject(Result(element, Nil))) {
-  let length = case maths.nth_root(int.to_float(n), 3) {
+  nodes: dict.Dict(Int, process.Subject(pushsum.PushSumMessage(e))),
+) -> Nil {
+  let length = case maths.nth_root(int.to_float(dict.size(nodes)), 3) {
     Error(_) -> 0
     Ok(result) -> float.truncate(result)
   }
@@ -39,7 +42,7 @@ pub fn recurse_3d(
   y: Int,
   z: Int,
   dim_length: Int,
-  nodes: Dict(Int, process.Subject(Result(element, Nil))),
+  nodes: dict.Dict(Int, process.Subject(pushsum.PushSumMessage(e))),
 ) {
   // exit condition
   case int.compare(x, dim_length) {
@@ -52,45 +55,58 @@ pub fn recurse_3d(
           let neighbor_idx = index_3d_to_1d(x + 1, y, z, dim_length)
           assign_neighbor(curr_idx, neighbor_idx, nodes)
         }
+        _ -> Nil
       }
       case int.compare(y + 1, dim_length) {
         order.Lt -> {
           let neighbor_idx = index_3d_to_1d(x, y + 1, z, dim_length)
           assign_neighbor(curr_idx, neighbor_idx, nodes)
         }
+        _ -> Nil
       }
       case int.compare(z + 1, dim_length) {
         order.Lt -> {
           let neighbor_idx = index_3d_to_1d(x, y, z + 1, dim_length)
           assign_neighbor(curr_idx, neighbor_idx, nodes)
         }
+        _ -> Nil
       }
 
       // move to next node
       case int.compare(z + 1, dim_length) {
         order.Lt -> recurse_3d(x, y, z + 1, dim_length, nodes)
+        _ -> Nil
       }
       case int.compare(y + 1, dim_length) {
         order.Lt -> recurse_3d(x, y + 1, 0, dim_length, nodes)
+        _ -> Nil
       }
       case int.compare(x + 1, dim_length) {
         order.Lt -> recurse_3d(x + 1, 0, 0, dim_length, nodes)
+        _ -> Nil
       }
     }
-    _ -> []
+    _ -> Nil
   }
 }
 
 pub fn assign_neighbor(
   index1: Int,
   index2: Int,
-  nodes: Dict(Int, process.Subject(Result(element, Nil))),
+  nodes: dict.Dict(Int, process.Subject(pushsum.PushSumMessage(e))),
 ) {
   case dict.get(nodes, index1) {
     Ok(node1) -> {
       case dict.get(nodes, index2) {
         Ok(node2) -> {
-          process.send(node1, AddNeighbor(node2))
+          io.println(
+            "Assigning neighbor: "
+            <> int.to_string(index1)
+            <> " <-> "
+            <> int.to_string(index2),
+          )
+          process.send(node1, pushsum.AddNeighbor(index2, node2))
+          process.send(node2, pushsum.AddNeighbor(index1, node1))
         }
         Error(_) -> {
           io.println("Error getting node2 at index " <> int.to_string(index2))
