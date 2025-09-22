@@ -18,8 +18,7 @@ pub type Message(e) {
   Gossip(message: String)
 
   Finished(parent: process.Subject(String))
-
-  UpdateNeighbors(source: process.Subject(Message(e)))
+  //UpdateNeighbors(source: process.Subject(Message(e)))
 }
 
 fn gossip_handler(
@@ -49,10 +48,9 @@ fn gossip_handler(
       actor.continue(state)
     }
 
-    UpdateNeighbors(source) -> {
-      todo
-    }
-
+    // UpdateNeighbors(source) -> {
+    //   todo
+    // }
     Gossip(message) -> {
       let max = dict.size(pair.first(state))
       let selected = int.random(max)
@@ -136,7 +134,7 @@ pub fn initialize_gossip(
   num_nodes: Int,
   nodes: dict.Dict(Int, process.Subject(Message(e))),
 ) {
-  case int.compare(start, num_nodes) {
+  case int.compare(start, num_nodes - 1) {
     order.Gt -> dict.new()
     _ -> {
       //io.print("INITIALIZING GOSSIP   ")

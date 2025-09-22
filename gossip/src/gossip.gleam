@@ -36,7 +36,7 @@ pub fn main() {
               io.println("topology is full")
               nodes
             }
-            "3D" -> {
+            "3d" -> {
               io.println("topology is 3D")
               threed.number_of_3d_nodes(nodes)
             }
@@ -44,7 +44,7 @@ pub fn main() {
               io.println("topology is line")
               nodes
             }
-            "imp3D" -> {
+            "imp3d" -> {
               io.println("topology is imperfect 3D")
               threed.number_of_3d_nodes(nodes)
             }
@@ -67,13 +67,13 @@ pub fn main() {
                 "full" -> {
                   full.full_network_gossip(0, actors_dict)
                 }
-                "3D" -> {
+                "3d" -> {
                   threed.setup_3d_topology_gossip(actors_dict)
                 }
                 "line" -> {
                   line.line_network_gossip(0, actors_dict)
                 }
-                "imp3D" -> {
+                "imp3d" -> {
                   imp3d.setup_imperfect_3d_topology_gossip(actors_dict)
                 }
                 _ -> {
@@ -115,13 +115,13 @@ pub fn main() {
                 "full" -> {
                   full.full_network_pushsum(0, actors_dict)
                 }
-                "3D" -> {
+                "3d" -> {
                   threed.setup_3d_topology_pushsum(actors_dict)
                 }
                 "line" -> {
                   line.line_network_pushsum(0, actors_dict)
                 }
-                "imp3D" -> {
+                "imp3d" -> {
                   imp3d.setup_imperfect_3d_topology_pushsum(actors_dict)
                 }
                 _ -> {
