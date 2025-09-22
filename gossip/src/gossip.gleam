@@ -9,6 +9,17 @@ import imp3d
 import pushsum
 import threed
 
+fn check(subject: process.Subject(gossalg.Message(e))) {
+  // process.sleep(10)
+  let end = process.call(subject, 10_000, gossalg.Finished)
+  // io.println("-----------------")
+
+  case end {
+    "NO" -> check(subject)
+    _ -> end
+  }
+}
+
 pub fn main() {
   case argv.load().arguments {
     ["project2", first, second, third] -> {
@@ -32,10 +43,10 @@ pub fn main() {
               io.println("topology is line")
               nodes
             }
-            "imp3D" -> {
-              io.println("topology is full")
-              threed.number_of_3d_nodes(nodes)
-            }
+            // "imp3D" -> {
+            //   io.println("topology is full")
+            //   threed.number_of_3d_nodes(nodes)
+            // }
             _ -> {
               io.println("INVALID TOPOLOGY")
               nodes
@@ -76,6 +87,7 @@ pub fn main() {
           // set up topology
           case second {
             "full" -> {
+              // gossalg.full_network(1, actors_dict)
               io.println("topology is full")
             }
             "3D" -> {
@@ -83,6 +95,7 @@ pub fn main() {
               threed.setup_3d_topology(actors_dict)
             }
             "line" -> {
+              // gossalg.line_network(1, actors_dict)
               io.println("topology is line")
             }
             "imp3D" -> {
@@ -97,6 +110,13 @@ pub fn main() {
           case third {
             "gossip" -> {
               io.println("Starting gossip")
+              let message = "this is my message"
+              let assert Ok(first) = dict.get(actors_dict, 1)
+              // process.send(first, gossalg.Gossip(message))
+              io.println("WAITING FOR ALGORITHM")
+              // let end = check(first)
+              io.println("ALGORITHM DONE")
+              // io.println(end)
             }
             "push-sum" -> {
               io.println("Starting push-sum")
@@ -107,7 +127,7 @@ pub fn main() {
                   io.println("Sent initial message to actor 0")
                   process.sleep(10_000)
                 }
-                Error(e) -> {
+                Error(_e) -> {
                   io.println("Failed to get actor 0: " <> "\n")
                 }
               }
