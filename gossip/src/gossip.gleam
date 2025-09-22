@@ -10,7 +10,6 @@ import gleam/otp/actor
 // import gleam/time/duration
 // import gleam/time/timestamp
 import gossalg
-<<<<<<< HEAD
 
 // import pushsum
 import threed
@@ -29,12 +28,6 @@ fn check(subject: process.Subject(gossalg.Message(e))) {
   }
 }
 
-=======
-import imp3d
-import pushsum
-import threed
-
->>>>>>> 58d4aea4372531481a73e27d8e55a8ca1124c8c4
 pub fn main() {
   case argv.load().arguments {
     ["project2", first, second, third] -> {
@@ -84,21 +77,12 @@ pub fn main() {
 
           // set up actors
           let actors_dict = case third {
-<<<<<<< HEAD
             "gossip" -> {
               gossalg.initialize_gossip(1, nodes, new())
             }
             // "push-sum" -> {
             //   pushsum.initialize_actors_push_sum(1, nodes, new())
             // }
-=======
-            // "gossip" -> {
-            //   gossalg.initialize_gossip(1, nodes, dict.new())
-            // }
-            "push-sum" -> {
-              pushsum.initialize_actors_push_sum(0, nodes, dict.new())
-            }
->>>>>>> 58d4aea4372531481a73e27d8e55a8ca1124c8c4
             _ -> {
               io.println("INVALID ALGORITHM")
               dict.new()
@@ -107,10 +91,6 @@ pub fn main() {
           io.println(
             "Actors initialized: " <> int.to_string(dict.size(actors_dict)),
           )
-<<<<<<< HEAD
-          //echo actors_dict
-=======
->>>>>>> 58d4aea4372531481a73e27d8e55a8ca1124c8c4
 
           // set up topology
           case second {
@@ -118,17 +98,10 @@ pub fn main() {
               gossalg.full_network(1, actors_dict)
               io.println("topology is full")
             }
-<<<<<<< HEAD
             // "3D" -> {
             //   io.println("topology is 3D")
             //   threed.setup_3d_topology(actors_list)
             // }
-=======
-            "3D" -> {
-              io.println("topology is 3D")
-              threed.setup_3d_topology(actors_dict)
-            }
->>>>>>> 58d4aea4372531481a73e27d8e55a8ca1124c8c4
             "line" -> {
               gossalg.line_network(1, actors_dict)
               io.println("topology is line")
