@@ -14,7 +14,7 @@ import threed
 
 fn check(subject: process.Subject(gossalg.Message(e))) {
   // process.sleep(10)
-  let end = process.call(subject, 10_000, gossalg.Finished)
+  let end = process.call(subject, 100_000, gossalg.Finished)
   // io.println("-----------------")
 
   case end {
@@ -135,7 +135,7 @@ pub fn main() {
               case first_actor {
                 Ok(actor1) -> {
                   process.send(runner_subject, pushsum.Start(actor1))
-                  process.sleep(1000)
+                  process.sleep(500_000)
                   Nil
                 }
                 Error(_e) -> {
