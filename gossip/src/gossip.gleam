@@ -5,6 +5,8 @@ import gleam/erlang/process
 import gleam/int
 import gleam/io
 import gleam/otp/actor
+import gleam/pair
+import gleam/time/duration
 import gleam/time/timestamp
 import gossalg
 import imp3d
@@ -29,7 +31,6 @@ pub fn main() {
       case int.parse(first) {
         Ok(result) -> {
           let nodes = result
-          io.println("Number of Nodes: " <> int.to_string(nodes))
 
           let nodes = case second {
             "full" -> {
@@ -85,9 +86,23 @@ pub fn main() {
               io.println("Starting gossip")
               let message = "this is my message"
               let assert Ok(first) = dict.get(actors_dict, 0)
+              let start = timestamp.system_time()
               process.send(first, gossalg.Gossip(message))
               io.println("WAITING FOR ALGORITHM")
               let end = check(first)
+              let end_time = timestamp.system_time()
+              let elapsed =
+                duration.to_seconds_and_nanoseconds(timestamp.difference(
+                  start,
+                  end_time,
+                ))
+              io.println(
+                "Time taken: "
+                <> int.to_string(pair.first(elapsed))
+                <> " s "
+                <> int.to_string(pair.second(elapsed))
+                <> " ns",
+              )
               io.println("ALGORITHM DONE")
               io.println(end)
             }
@@ -135,7 +150,7 @@ pub fn main() {
               case first_actor {
                 Ok(actor1) -> {
                   process.send(runner_subject, pushsum.Start(actor1))
-                  process.sleep(500_000)
+                  process.sleep(10_000)
                   Nil
                 }
                 Error(_e) -> {

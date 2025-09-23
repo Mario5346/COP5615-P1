@@ -118,6 +118,7 @@ pub fn recurse_assign_neighbor_gossip(
       let unp = set.to_list(unpartnered)
       let node1 = random_element(unp)
       let node2 = random_element(unp)
+
       case int.compare(node1, node2) {
         order.Eq -> recurse_assign_neighbor_gossip(nodes, unpartnered, pos)
         _ -> {
@@ -144,15 +145,9 @@ pub fn try_assign_neighbor_gossip(
     Ok(n1) -> {
       case dict.get(nodes, node2) {
         Ok(n2) -> {
-          let neighbors = process.call(n1, 100, gossalg.GetNeighbors)
-          case dict.get(neighbors, node2) {
-            Ok(_) -> False
-            _ -> {
-              process.send(n1, gossalg.AddNeighbor(n2))
-              process.send(n2, gossalg.AddNeighbor(n1))
-              True
-            }
-          }
+          process.send(n1, gossalg.AddNeighbor(n2))
+          process.send(n2, gossalg.AddNeighbor(n1))
+          True
         }
         Error(_) -> False
       }

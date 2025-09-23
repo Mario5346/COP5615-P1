@@ -1,10 +1,9 @@
-
 # Project 2: Gossip Algorithms
 
 ## Team members:
 
 Srikar Tadeparti,
-Mario Ponte
+Mario Ponte Garofalo
 
 ## What is working
 
@@ -13,12 +12,12 @@ You can run the code using the following command:
 `gleam run project2 <nodes> <topology> <algorithm>`
 
 For example:
-`gleam run project2 27 3D push-sum`
+
+`gleam run project2 1000 full push-sum`
 
 
 All 4 topologies work with both algorithms. Feel free to modify the parameters. 3D rounds up to the next highest number of nodes.
 Eg. a value of 10 would give 27 nodes.
-
 
 ## Largest tested values
 

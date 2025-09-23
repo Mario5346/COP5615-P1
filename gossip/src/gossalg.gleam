@@ -154,6 +154,7 @@ pub fn initialize_gossip(
       //echo new_nodes
       final
     }
+    _ -> dict.new()
   }
 }
 // fn set_neighbors(node: process.Subject(Message(e)), nodes: dict.Dict(Int, process.Subject(Message(e)))){
