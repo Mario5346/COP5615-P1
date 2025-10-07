@@ -13,11 +13,32 @@ pub type RunMessage(e) {
   End
 }
 
+pub type SuperMessage(e) {
+  Run(num_nodes: Int, num_requests: Int)
+}
+
+pub fn waiter(nodes: List(process.Subject(Message(e)))) {
+  case list.first(nodes) {
+    Ok(sub) -> {
+      process.receive_forever(sub)
+      let new_nodes = case nodes {
+        [_, ..rest] -> rest
+        _ -> []
+      }
+      waiter(new_nodes)
+    }
+    _ -> {
+      io.println("All nodes have finished")
+    }
+  }
+}
+
 pub fn initialize_actor(
   id: Int,
   num: Int,
   max: Int,
   nodes: dict.Dict(Int, process.Subject(Message(e))),
+  //parent: process.Subject(String),
   runner: process.Subject(RunMessage(e)),
 ) -> dict.Dict(Int, process.Subject(Message(e))) {
   case int.compare(num, max) {
@@ -43,6 +64,7 @@ pub type Message(e) {
   GetNeighbors(
     reply_to: process.Subject(dict.Dict(Int, process.Subject(Message(e)))),
   )
+  Finish
 }
 
 pub type StateHolder(e) {
@@ -51,8 +73,34 @@ pub type StateHolder(e) {
     id: Int,
     request_num: Int,
     max_num: Int,
+    //parent_process: process.Subject(String),
     end_subject: process.Subject(RunMessage(e)),
   )
+}
+
+pub fn super_handler(
+  state: List(process.Subject(Message(e))),
+  message: SuperMessage(e),
+) -> actor.Next(List(process.Subject(Message(e))), SuperMessage(e)) {
+  case message {
+    Run(n, k) -> {
+      //Initialize nodes
+
+      // Wait for nodes to finish
+      case list.first(state) {
+        Ok(sub) -> {
+          waiter(state)
+          actor.continue(state)
+        }
+        _ -> {
+          todo
+        }
+      }
+    }
+    _ -> {
+      todo
+    }
+  }
 }
 
 fn handler(
@@ -86,6 +134,10 @@ fn handler(
     GetNeighbors(reply_to) -> {
       process.send(reply_to, state.neighbors)
       actor.continue(state)
+    }
+
+    Finish -> {
+      todo
     }
   }
 }
