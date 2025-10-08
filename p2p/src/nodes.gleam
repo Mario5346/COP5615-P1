@@ -15,20 +15,21 @@ pub type StateHolder(e) {
     request_num: Int,
     max_num: Int,
     //parent_process: process.Subject(String),
-    end_subject: process.Subject(RunMessage(e)),
+    super: process.Subject(SuperMessage(e)),
   )
 }
 
 //-----------------------------------SUPERVISOR FUNCTIONS----------------------------------------------
 
-pub type RunMessage(e) {
-  Start(actor: process.Subject(Message(e)))
-  End
-}
+// pub type RunMessage(e) {
+//   Start(actor: process.Subject(Message(e)))
+//   End
+// }
 
 pub type SuperMessage(e) {
   Run(num_nodes: Int, num_requests: Int)
   AddNode(num_requests: Int)
+  Done
 }
 
 pub fn waiter(nodes: List(process.Subject(Message(e)))) {
@@ -71,6 +72,10 @@ pub fn super_handler(
       //Adds node to network, making it a neighbor to the necessary nodes and adding to node list
       todo
     }
+    Done -> {
+      io.println("node done")
+      actor.continue(state)
+    }
   }
 }
 
@@ -80,11 +85,11 @@ pub fn initialize_actors(
   max: Int,
   nodes: dict.Dict(Int, process.Subject(Message(e))),
   //parent: process.Subject(String),
-  runner: process.Subject(RunMessage(e)),
+  super: process.Subject(SuperMessage(e)),
 ) -> dict.Dict(Int, process.Subject(Message(e))) {
   case int.compare(num, max) {
     order.Lt -> {
-      let initial_state = StateHolder(dict.new(), id, 0, max, runner)
+      let initial_state = StateHolder(dict.new(), id, 0, max, super)
       let assert Ok(actor) =
         actor.new(initial_state)
         |> actor.on_message(handler)
@@ -92,12 +97,14 @@ pub fn initialize_actors(
       let subject = actor.data
       let new_nodes = dict.insert(nodes, num, subject)
 
-      let final = initialize_actors(id, num + 1, max, new_nodes, runner)
+      let final = initialize_actors(id, num + 1, max, new_nodes, super)
       final
     }
     _ -> nodes
   }
 }
+
+//----------------------------------------NODE FUNCTIONS----------------------------------------------
 
 pub type Message(e) {
   AddNeighbor(neighbor_id: Int, neighbor: process.Subject(Message(e)))
@@ -108,7 +115,13 @@ pub type Message(e) {
   Finish
 }
 
-//----------------------------------------NODE FUNCTIONS----------------------------------------------
+fn send_requests(from: process.Subject(Message(e)), num_requests: Int) {
+  process.sleep(1000)
+
+  //Send requests
+
+  send_requests(from, num_requests - 1)
+}
 
 fn handler(
   state: StateHolder(e),
@@ -123,7 +136,7 @@ fn handler(
           state.id,
           state.request_num,
           state.max_num,
-          state.end_subject,
+          state.super,
         )
       // io.println(
       //   "Adding neighbor to "
@@ -144,6 +157,7 @@ fn handler(
     }
 
     Finish -> {
+      process.send(state.super, Done)
       todo
     }
   }
