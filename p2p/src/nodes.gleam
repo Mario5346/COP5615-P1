@@ -8,6 +8,19 @@ import gleam/list
 import gleam/order
 import gleam/otp/actor
 
+pub type StateHolder(e) {
+  StateHolder(
+    neighbors: dict.Dict(Int, process.Subject(Message(e))),
+    id: Int,
+    request_num: Int,
+    max_num: Int,
+    //parent_process: process.Subject(String),
+    end_subject: process.Subject(RunMessage(e)),
+  )
+}
+
+//-----------------------------------SUPERVISOR FUNCTIONS----------------------------------------------
+
 pub type RunMessage(e) {
   Start(actor: process.Subject(Message(e)))
   End
@@ -15,12 +28,14 @@ pub type RunMessage(e) {
 
 pub type SuperMessage(e) {
   Run(num_nodes: Int, num_requests: Int)
+  AddNode(num_requests: Int)
 }
 
 pub fn waiter(nodes: List(process.Subject(Message(e)))) {
   case list.first(nodes) {
     Ok(sub) -> {
       process.receive_forever(sub)
+      io.println("node has finished")
       let new_nodes = case nodes {
         [_, ..rest] -> rest
         _ -> []
@@ -31,51 +46,6 @@ pub fn waiter(nodes: List(process.Subject(Message(e)))) {
       io.println("All nodes have finished")
     }
   }
-}
-
-pub fn initialize_actor(
-  id: Int,
-  num: Int,
-  max: Int,
-  nodes: dict.Dict(Int, process.Subject(Message(e))),
-  //parent: process.Subject(String),
-  runner: process.Subject(RunMessage(e)),
-) -> dict.Dict(Int, process.Subject(Message(e))) {
-  case int.compare(num, max) {
-    order.Lt -> {
-      let initial_state = StateHolder(dict.new(), id, 0, max, runner)
-      let assert Ok(actor) =
-        actor.new(initial_state)
-        |> actor.on_message(handler)
-        |> actor.start
-      let subject = actor.data
-      let new_nodes = dict.insert(nodes, num, subject)
-
-      let final = initialize_actor(id, num + 1, max, new_nodes, runner)
-      final
-    }
-    _ -> nodes
-  }
-}
-
-pub type Message(e) {
-  AddNeighbor(neighbor_id: Int, neighbor: process.Subject(Message(e)))
-  ReceiveMessage(s: Float, w: Float)
-  GetNeighbors(
-    reply_to: process.Subject(dict.Dict(Int, process.Subject(Message(e)))),
-  )
-  Finish
-}
-
-pub type StateHolder(e) {
-  StateHolder(
-    neighbors: dict.Dict(Int, process.Subject(Message(e))),
-    id: Int,
-    request_num: Int,
-    max_num: Int,
-    //parent_process: process.Subject(String),
-    end_subject: process.Subject(RunMessage(e)),
-  )
 }
 
 pub fn super_handler(
@@ -97,11 +67,48 @@ pub fn super_handler(
         }
       }
     }
-    _ -> {
+    AddNode(num_requests) -> {
+      //Adds node to network, making it a neighbor to the necessary nodes and adding to node list
       todo
     }
   }
 }
+
+pub fn initialize_actors(
+  id: Int,
+  num: Int,
+  max: Int,
+  nodes: dict.Dict(Int, process.Subject(Message(e))),
+  //parent: process.Subject(String),
+  runner: process.Subject(RunMessage(e)),
+) -> dict.Dict(Int, process.Subject(Message(e))) {
+  case int.compare(num, max) {
+    order.Lt -> {
+      let initial_state = StateHolder(dict.new(), id, 0, max, runner)
+      let assert Ok(actor) =
+        actor.new(initial_state)
+        |> actor.on_message(handler)
+        |> actor.start
+      let subject = actor.data
+      let new_nodes = dict.insert(nodes, num, subject)
+
+      let final = initialize_actors(id, num + 1, max, new_nodes, runner)
+      final
+    }
+    _ -> nodes
+  }
+}
+
+pub type Message(e) {
+  AddNeighbor(neighbor_id: Int, neighbor: process.Subject(Message(e)))
+  ReceiveMessage(s: Float, w: Float)
+  GetNeighbors(
+    reply_to: process.Subject(dict.Dict(Int, process.Subject(Message(e)))),
+  )
+  Finish
+}
+
+//----------------------------------------NODE FUNCTIONS----------------------------------------------
 
 fn handler(
   state: StateHolder(e),
