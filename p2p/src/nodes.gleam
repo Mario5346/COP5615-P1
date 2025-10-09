@@ -5,6 +5,7 @@ import gleam/io
 import gleam/list
 import gleam/order
 import gleam/otp/actor
+import gleam/pair
 
 // We will be implementing the Chord protocol for a distributed hash table. This file contains the code for each node.
 //-----------------------------------SUPERVISOR FUNCTIONS----------------------------------------------
@@ -55,13 +56,13 @@ pub type StateHolder(e) {
   StateHolder(
     id: Int,
     pred: Int,
-    // each entry is (node_id, subject)
-    finger_table: Dict(Int, process.Subject(NodeOperation(e))),
+    // each entry is (index #(node_id, subject))
+    finger_table: Dict(Int, #(Int, process.Subject(NodeOperation(e)))),
     // key value pairs representing the database
     storage: Dict(Int, Float),
     request_num: Int,
     max_num: Int,
-    //parent_process: process.Subject(String),
+    //parent_process: process.Subject(String), should just be main process
     super: process.Subject(NodeOperation(e)),
   )
 }
@@ -115,6 +116,9 @@ pub type NodeOperation(e) {
     key: Int,
   )
   CreateChordRing
+
+  GetState(node: process.Subject(NodeOperation(e)))
+
   Join(existing: process.Subject(NodeOperation(e)))
   Stabilize
   Notify(potential_predecessor: process.Subject(NodeOperation(e)))
@@ -125,7 +129,7 @@ pub type NodeOperation(e) {
 
 // create a new Chord ring.
 fn create(state: StateHolder(e), node: process.Subject(NodeOperation(e))) {
-  let new_table = dict.insert(state.finger_table, state.id, node)
+  let new_table = dict.insert(state.finger_table, state.id, #(state.id, node))
   let new_state =
     StateHolder(
       state.id,
@@ -140,11 +144,89 @@ fn create(state: StateHolder(e), node: process.Subject(NodeOperation(e))) {
   //successor := n
 }
 
+// ask node n to find the successor of id
+fn find_successor(
+  state: StateHolder(e),
+  node: process.Subject(NodeOperation(e)),
+  id: Int,
+) {
+  // // Yes, that should be a closing square bracket to match the opening parenthesis.
+  // // It is a half closed interval.
+  // if id ∈ (n, successor] then
+  //     return successor
+  // else
+  //     // forward the query around the circle
+  //     n0 := closest_preceding_node(id)
+  //     return n0.find_successor(id)
+
+  //GET FIRST ENTRY OF FINGER TABLE IDK HOW 
+  let assert Ok(successor) = dict.get(state.finger_table, state.id + 1)
+  let succ_id = pair.first(successor)
+  let in_range = { id <= succ_id } && { id > state.id }
+
+  case in_range {
+    True -> {
+      successor
+      succ_id
+    }
+    False -> {
+      let n0_id = closest_preceding_node(state, node, id)
+      //find_successor(n0_state, node, id)
+    }
+  }
+}
+
+//helper loop for closest_preceeding_node
+fn search_table(curr: Int, state: StateHolder(e), id: Int) {
+  let table = state.finger_table
+
+  case int.compare(curr, 0) {
+    order.Gt -> {
+      let assert Ok(finger) = dict.get(table, curr)
+      let finger_id = pair.first(finger)
+      let in_range = { finger_id > state.id } && { finger_id < id }
+      case in_range {
+        True -> {
+          //let assert Ok(finger) = dict.get(table, curr)
+          finger_id
+        }
+        _ -> search_table(curr - 1, state, id)
+      }
+    }
+    _ -> state.id
+  }
+}
+
+// search the local table for the highest predecessor of id, returns pred id
+fn closest_preceding_node(
+  state: StateHolder(e),
+  node: process.Subject(NodeOperation(e)),
+  id: Int,
+) {
+  // for i = m downto 1 do
+  //     if (finger[i] ∈ (n, id)) then
+  //         return finger[i]
+  // return n
+  search_table(dict.size(state.finger_table), state, id)
+}
+
 // join a Chord ring containing node n'.
-// fn join(n'){
-//     predecessor := nil
-//         successor := n'.find_successor(n)
-// }
+fn join(state: StateHolder(e), known_node: process.Subject(NodeOperation(e))) {
+  let predecessor = Nil
+  let new_successor = find_successor(state, known_node, state.id)
+  let new_state =
+    StateHolder(
+      state.id,
+      0,
+      state.finger_table,
+      state.storage,
+      state.request_num,
+      state.max_num,
+      state.super,
+    )
+  new_state
+}
+
 // // called periodically. n asks the successor
 // // about its predecessor, verifies if n's immediate
 // // successor is consistent, and tells the successor about n
