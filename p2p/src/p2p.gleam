@@ -5,7 +5,7 @@ import gleam/io
 import gleam/otp/actor
 import nodes
 
-//https://bitbucket.org/felixy12/cos518_project/src/master/Chord_Python/src_2/
+//https://bitbucket.org/felixy12/cos518_project/src/master/Chord_Python/src/
 
 pub fn main() {
   case argv.load().arguments {
