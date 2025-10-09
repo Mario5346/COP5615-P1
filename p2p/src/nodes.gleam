@@ -207,15 +207,14 @@ pub fn node_handler(
       actor.continue(new_state)
     }
     ReceiveMessage(s, w) -> {
-      todo
-      //TODO
+      actor.continue(state)
     }
     Finish -> {
       process.send(state.super, Finish)
-      todo
+      actor.continue(state)
     }
     _ -> {
-      todo
+      actor.continue(state)
     }
   }
 }
