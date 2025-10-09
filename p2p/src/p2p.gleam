@@ -1,11 +1,30 @@
 import argv
+import gleam/dict
 import gleam/erlang/process
 import gleam/int
 import gleam/io
+import gleam/list
 import gleam/otp/actor
 import nodes
 
 //https://bitbucket.org/felixy12/cos518_project/src/master/Chord_Python/src/
+
+pub fn waiter(nodes: List(process.Subject(nodes.NodeOperation(e)))) {
+  case list.first(nodes) {
+    Ok(sub) -> {
+      process.receive_forever(sub)
+      io.println("node has finished")
+      let new_nodes = case nodes {
+        [_, ..rest] -> rest
+        _ -> []
+      }
+      waiter(new_nodes)
+    }
+    _ -> {
+      io.println("All nodes have finished")
+    }
+  }
+}
 
 pub fn main() {
   case argv.load().arguments {
@@ -23,13 +42,23 @@ pub fn main() {
                 <> " requests each",
               )
               //TODO
+              let id = 0
+              let pred = 0
+              let max_requests = result
+              let max_nodes = n
+              let super = process.new_subject()
+              let all_nodes =
+                nodes.initialize_actors(
+                  id,
+                  pred,
+                  0,
+                  max_requests,
+                  max_nodes,
+                  dict.new(),
+                  super,
+                )
 
-              let subject = process.new_subject()
-              let assert Ok(actor) =
-                actor.new([])
-                |> actor.on_message(nodes.super_handler)
-                |> actor.start
-              let sub = actor.data
+              //
 
               //call on super to start nodes with (numNodes and numRequests)
 
