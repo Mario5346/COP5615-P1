@@ -5,14 +5,15 @@ import gleam/int
 import gleam/io
 import gleam/list
 import gleam/otp/actor
+import gleam/pair
 import nodes
 
 //https://bitbucket.org/felixy12/cos518_project/src/master/Chord_Python/src/
 
-pub fn waiter(nodes: List(process.Subject(nodes.NodeOperation(e)))) {
+pub fn waiter(nodes: List(#(Int, process.Subject(nodes.NodeOperation(e))))) {
   case list.first(nodes) {
     Ok(sub) -> {
-      process.receive_forever(sub)
+      process.receive_forever(pair.second(sub))
       io.println("node has finished")
       let new_nodes = case nodes {
         [_, ..rest] -> rest
@@ -57,6 +58,7 @@ pub fn main() {
                   dict.new(),
                   super,
                 )
+              waiter(dict.to_list(all_nodes))
 
               //
 
