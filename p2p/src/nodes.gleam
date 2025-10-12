@@ -2,12 +2,9 @@ import gleam/dict.{type Dict}
 import gleam/erlang/process
 import gleam/float
 import gleam/int
-import gleam/io
-import gleam/list
 import gleam/option.{type Option}
 import gleam/order
 import gleam/otp/actor
-import gleam/pair
 
 // We will be implementing the Chord protocol for a distributed hash table. This file contains the code for each node.
 
@@ -96,10 +93,10 @@ pub type NodeOperation(e) {
   ClosestPrecedingNode(id: Int, caller: process.Subject(NodeOperation(e)))
   CreateChordRing
 
-  GetState(node: process.Subject(StateHolder(e)))
+  GetState(reply_with: process.Subject(StateHolder(e)))
   AddSelfInfo(info: process.Subject(NodeOperation(e)))
 
-  Join(existing: process.Subject(NodeOperation(e)))
+  Join(n0: NodeInfo(e))
   Stabilize
   Notify(potential_predecessor: NodeInfo(e))
   FixFingers
@@ -127,10 +124,8 @@ fn create(state: StateHolder(e), node: process.Subject(NodeOperation(e))) {
   new_state
 }
 
-// ask node n to find the successor of id
+// ask node n to find the successor of id. State represents n.
 fn find_successor(state: StateHolder(e), id: Int) -> NodeInfo(e) {
-  // // Yes, that should be a closing square bracket to match the opening parenthesis.
-  // // It is a half closed interval.
   // if id ∈ (n, successor] then
   //     return successor
   // else
@@ -150,7 +145,7 @@ fn find_successor(state: StateHolder(e), id: Int) -> NodeInfo(e) {
     }
     False -> {
       let n0 = closest_preceding_node(state, id)
-      process.call(n0.subject, 1000, FindSuccessor(id, todo))
+      process.call(n0.subject, 1000, FindSuccessor(id, _))
     }
   }
 }
@@ -191,19 +186,28 @@ fn closest_preceding_node(state: StateHolder(e), id: Int) -> NodeInfo(e) {
   search_table(dict.size(state.finger_table), state, id)
 }
 
-// join a node n into a Chord ring containing node n'.
+// join the current node n into a Chord ring containing node n'.
 // To fix
-fn join(state: StateHolder(e), known_node: process.Subject(NodeOperation(e))) {
+fn join(
+  state: StateHolder(e),
+  existing_chord_node: process.Subject(NodeOperation(e)),
+) {
   //  predecessor := nil;
   //  successor := n'.find successor(n);
   let predecessor = option.None
-  let new_successor = find_successor(state, known_node, state.id)
+  let new_successor =
+    process.call(existing_chord_node, 1000, FindSuccessor(state.id, _))
+  // replace entry for successor in finger table
+  let new_table =
+    dict.delete(state.finger_table, state.id + 1)
+    |> dict.insert(state.id + 1, new_successor)
+
   let new_state =
     StateHolder(
       state.id,
       state.self_subject,
       predecessor,
-      state.finger_table,
+      new_table,
       state.storage,
       state.request_num,
       state.max_num,
@@ -223,12 +227,18 @@ fn stabilize(state: StateHolder(e)) {
   let successor = dict.get(state.finger_table, state.id + 1)
   case successor {
     Ok(succ) -> {
-      let successor_state = process.call(succ.subject, 1000, GetState())
+      let successor_state = process.call(succ.subject, 1000, GetState)
       let x = successor_state.pred
-      let in_range = { x > state.id } && { x < succ.id }
-      case in_range {
-        True -> {
-          let new_successor = x
+      case x {
+        option.Some(node) -> {
+          let x_id = node.id
+          let in_range = { x_id > state.id } && { x_id < succ.id }
+          case in_range {
+            True -> {
+              let new_successor = x
+            }
+            _ -> todo
+          }
         }
         _ -> todo
       }
@@ -260,7 +270,7 @@ fn notify(state: StateHolder(e), n0: NodeInfo(e)) {
             StateHolder(
               state.id,
               state.self_subject,
-              n0.id,
+              option.Some(n0),
               state.finger_table,
               state.storage,
               state.request_num,
@@ -278,7 +288,7 @@ fn notify(state: StateHolder(e), n0: NodeInfo(e)) {
         StateHolder(
           state.id,
           state.self_subject,
-          n0.id,
+          option.Some(n0),
           state.finger_table,
           state.storage,
           state.request_num,
@@ -411,12 +421,12 @@ pub fn node_handler(
         }
       }
     }
-    Join(existing) -> {
-      let new_state = join(state, existing)
+    Join(existing_chord_node) -> {
+      let new_state = join(state, existing_chord_node.subject)
       actor.continue(new_state)
     }
-    GetState(node) -> {
-      process.send(node, state)
+    GetState(caller) -> {
+      process.send(caller, state)
       actor.continue(state)
     }
     Stabilize -> {
