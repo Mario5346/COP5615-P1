@@ -61,6 +61,9 @@ pub fn initialize_actors(
       let subject = actor.data
       // TODO: ID should be hash of IP address
       actor.send(subject, AddSelfInfo(subject))
+
+      // Todo: Call Create Chord Ring on first node and Join on the rest
+
       // Add the new node to the list of nodes
       let new_nodes = dict.insert(nodes, loop_num, subject)
 
@@ -87,15 +90,16 @@ fn in_open_closed_interval(x: Int, a: Int, b: Int) -> Bool {
 //----------------------------------------NODE FUNCTIONS----------------------------------------------
 
 pub type NodeOperation(e) {
-  AddNeighbor(neighbor_id: Int, neighbor: process.Subject(NodeOperation(e)))
-  ReceiveMessage(s: Float, w: Float)
+  SearchKey(key: Int, reply_with: process.Subject(Float))
+  AddKeyToRing(key: Int, value: Float)
   FindSuccessor(id: Int, reply_with: process.Subject(NodeInfo(e)))
-  ClosestPrecedingNode(id: Int, caller: process.Subject(NodeOperation(e)))
   CreateChordRing
 
   GetState(reply_with: process.Subject(StateHolder(e)))
   AddSelfInfo(info: process.Subject(NodeOperation(e)))
 
+  // private
+  AddKeyToStorage(key: Int, value: Float)
   Join(n0: NodeInfo(e))
   Stabilize
   Notify(potential_predecessor: NodeInfo(e))
@@ -169,10 +173,11 @@ fn search_table(curr: Int, state: StateHolder(e), id: Int) -> NodeInfo(e) {
       }
     }
     _ -> {
-      // Todo
-      state.self_subject
-      let assert Ok(finger) = dict.get(table, curr)
-      finger
+      // return n. Assuming self subject is always present
+      case state.self_subject {
+        option.Some(subject) -> NodeInfo(state.id, subject)
+        option.None -> NodeInfo(state.id, process.new_subject())
+      }
     }
   }
 }
@@ -234,36 +239,74 @@ fn stabilize(state: StateHolder(e)) {
           let x_id = node.id
           let in_range = { x_id > state.id } && { x_id < succ.id }
           case in_range {
+            // Update successor to x
             True -> {
-              let new_successor = x
+              let new_successor = node
+              let new_table =
+                dict.delete(state.finger_table, state.id + 1)
+                |> dict.insert(state.id + 1, new_successor)
+              let new_state =
+                StateHolder(
+                  state.id,
+                  state.self_subject,
+                  state.pred,
+                  new_table,
+                  state.storage,
+                  state.request_num,
+                  state.max_num,
+                  state.super,
+                )
+              case state.self_subject {
+                option.Some(subject) ->
+                  process.send(
+                    succ.subject,
+                    Notify(NodeInfo(state.id, subject)),
+                  )
+                _ -> Nil
+              }
+              new_state
             }
-            _ -> todo
+            // Do not update successor. Just notify
+            _ -> {
+              case state.self_subject {
+                option.Some(subject) ->
+                  process.send(
+                    succ.subject,
+                    Notify(NodeInfo(state.id, subject)),
+                  )
+                _ -> Nil
+              }
+              state
+            }
           }
         }
-        _ -> todo
-      }
-      case state.self_subject {
-        option.Some(subject) ->
-          process.send(succ.subject, Notify(NodeInfo(state.id, subject)))
-        _ -> todo
+        // successor's predecessor is nil. Notify successor to update.
+        _ -> {
+          case state.self_subject {
+            option.Some(subject) ->
+              process.send(succ.subject, Notify(NodeInfo(state.id, subject)))
+            _ -> Nil
+          }
+          state
+        }
       }
     }
     _ -> {
-      todo
-      // Should not happen
+      // Should not happen. No successor
+      state
     }
   }
 }
 
-// // n' thinks it might be our predecessor.
-fn notify(state: StateHolder(e), n0: NodeInfo(e)) {
+// n' thinks it might be our predecessor, so we update our predecessor.
+fn notify(state: StateHolder(e), n0: NodeInfo(e)) -> StateHolder(e) {
   //     if predecessor is nil or n'∈(predecessor, n) then
   //         predecessor := n'
   case state.pred {
     option.Some(p) -> {
       // TODO: Handle wrap around
       let in_range = { n0.id > p.id } && { n0.id < state.id }
-      // n's id is between predecessor and current node id
+      // n's id is between predecessor and this node
       case in_range {
         True -> {
           let new_state =
@@ -356,29 +399,6 @@ pub fn node_handler(
   message: NodeOperation(e),
 ) -> actor.Next(StateHolder(e), NodeOperation(e)) {
   case message {
-    AddNeighbor(neighbor_id, neighbor) -> {
-      //Modifies Finger table
-
-      //let new_neighbors = dict.insert(state.neighbors, neighbor_id, neighbor)
-      let new_state =
-        StateHolder(
-          state.id,
-          state.self_subject,
-          state.pred,
-          state.finger_table,
-          state.storage,
-          state.request_num,
-          state.max_num,
-          state.super,
-        )
-      // io.println(
-      //   "Adding neighbor to "
-      //   <> int.to_string(state.id)
-      //   <> "new size: "
-      //   <> int.to_string(dict.size(new_neighbors)),
-      // )
-      actor.continue(new_state)
-    }
     AddSelfInfo(info) -> {
       let new_state =
         StateHolder(
@@ -393,8 +413,41 @@ pub fn node_handler(
         )
       actor.continue(new_state)
     }
-    ReceiveMessage(s, w) -> {
+    SearchKey(key, reply_with) -> {
+      let node_with_key = find_successor(state, key)
+      let node_state = process.call(node_with_key.subject, 1000, GetState)
+      let value = dict.get(node_state.storage, key)
+      case value {
+        Ok(v) -> {
+          process.send(reply_with, v)
+          actor.continue(state)
+        }
+        _ -> {
+          // Key not found
+          process.send(reply_with, 0.0)
+          actor.continue(state)
+        }
+      }
+    }
+    AddKeyToRing(key, value) -> {
+      let node_with_key = find_successor(state, key)
+      process.send(node_with_key.subject, AddKeyToStorage(key, value))
       actor.continue(state)
+    }
+    AddKeyToStorage(key, value) -> {
+      let new_storage = dict.insert(state.storage, key, value)
+      let new_state =
+        StateHolder(
+          state.id,
+          state.self_subject,
+          state.pred,
+          state.finger_table,
+          new_storage,
+          state.request_num,
+          state.max_num,
+          state.super,
+        )
+      actor.continue(new_state)
     }
     FindSuccessor(id, reply_with) -> {
       case state.self_subject {
@@ -430,11 +483,12 @@ pub fn node_handler(
       actor.continue(state)
     }
     Stabilize -> {
-      // stabilize(state)
+      stabilize(state)
       actor.continue(state)
     }
     Notify(potential_predecessor) -> {
       let new_state = notify(state, potential_predecessor)
+      // new state with updated predecessor
       actor.continue(new_state)
     }
     FixFingers -> {
@@ -443,11 +497,12 @@ pub fn node_handler(
       let new_state = fix_fingers(0, m, state)
       actor.continue(new_state)
     }
-    Finish -> {
-      process.send(state.super, Finish)
+    CheckPredecessor -> {
+      check_predecessor()
       actor.continue(state)
     }
-    _ -> {
+    Finish -> {
+      process.send(state.super, Finish)
       actor.continue(state)
     }
   }
