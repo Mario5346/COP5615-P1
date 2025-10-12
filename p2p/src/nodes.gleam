@@ -3,61 +3,24 @@ import gleam/erlang/process
 import gleam/int
 import gleam/io
 import gleam/list
+import gleam/option.{type Option}
 import gleam/order
 import gleam/otp/actor
 import gleam/pair
 
 // We will be implementing the Chord protocol for a distributed hash table. This file contains the code for each node.
-//-----------------------------------SUPERVISOR FUNCTIONS----------------------------------------------
 
-// pub type RunMessage(e) {
-//   Start(actor: process.Subject(NodeOperation(e)))
-//   End
-// }
-
-// pub type SuperMessage(e) {
-//   Run(num_nodes: Int, num_requests: Int)
-//   AddNode(num_requests: Int)
-//   Done
-// }
-
-// pub fn super_handler(
-//   state: List(process.Subject(NodeOperation(e))),
-//   message: SuperMessage(e),
-// ) -> actor.Next(List(process.Subject(NodeOperation(e))), SuperMessage(e)) {
-//   case message {
-//     Run(n, k) -> {
-//       //Initialize nodes
-
-//       // Wait for nodes to finish
-//       case list.first(state) {
-//         Ok(sub) -> {
-//           waiter(state)
-//           actor.continue(state)
-//         }
-//         _ -> {
-//           todo
-//         }
-//       }
-//     }
-//     AddNode(num_requests) -> {
-//       //Adds node to network, making it a neighbor to the necessary nodes and adding to node list
-//       todo
-//     }
-//     Done -> {
-//       io.println("node done")
-//       actor.continue(state)
-//     }
-//   }
-// }
+pub type NodeInfo(e) {
+  NodeInfo(id: Int, subject: process.Subject(NodeOperation(e)))
+}
 
 // State holds the storage/variables of each node
 pub type StateHolder(e) {
   StateHolder(
     id: Int,
-    pred: Int,
+    pred: Option(NodeInfo(e)),
     // each entry is (index #(node_id, subject))
-    finger_table: Dict(Int, #(Int, process.Subject(NodeOperation(e)))),
+    finger_table: Dict(Int, NodeInfo(e)),
     // key value pairs representing the database
     storage: Dict(Int, Float),
     request_num: Int,
@@ -67,32 +30,35 @@ pub type StateHolder(e) {
   )
 }
 
+// Loops n times to create n actors, each with its own state
 pub fn initialize_actors(
   id: Int,
   pred_id: Int,
-  num: Int,
+  loop_num: Int,
   max: Int,
   num_nodes: Int,
   nodes: dict.Dict(Int, process.Subject(NodeOperation(e))),
   //parent: process.Subject(String),
   super: process.Subject(NodeOperation(e)),
 ) -> dict.Dict(Int, process.Subject(NodeOperation(e))) {
-  case int.compare(num, max) {
+  case int.compare(loop_num, max) {
     order.Lt -> {
+      // Create new actor/node with a base state
       let initial_state =
-        StateHolder(id, pred_id, dict.new(), dict.new(), 0, max, super)
+        StateHolder(id, option.None, dict.new(), dict.new(), 0, max, super)
       let assert Ok(actor) =
         actor.new(initial_state)
         |> actor.on_message(node_handler)
         |> actor.start
       let subject = actor.data
-      let new_nodes = dict.insert(nodes, num, subject)
+      // Add the new node to the list of nodes
+      let new_nodes = dict.insert(nodes, loop_num, subject)
 
       let final =
         initialize_actors(
           id,
           pred_id,
-          num + 1,
+          loop_num + 1,
           max,
           num_nodes,
           new_nodes,
@@ -109,12 +75,8 @@ pub fn initialize_actors(
 pub type NodeOperation(e) {
   AddNeighbor(neighbor_id: Int, neighbor: process.Subject(NodeOperation(e)))
   ReceiveMessage(s: Float, w: Float)
-  FindSuccessor(id: Int, caller: process.Subject(NodeOperation(e)), key: Int)
-  ClosestPrecedingNode(
-    id: Int,
-    caller: process.Subject(NodeOperation(e)),
-    key: Int,
-  )
+  FindSuccessor(id: Int, reply_with: process.Subject(NodeInfo(e)))
+  ClosestPrecedingNode(id: Int, caller: process.Subject(NodeOperation(e)))
   CreateChordRing
 
   GetState(node: process.Subject(NodeOperation(e)))
@@ -129,11 +91,14 @@ pub type NodeOperation(e) {
 
 // create a new Chord ring.
 fn create(state: StateHolder(e), node: process.Subject(NodeOperation(e))) {
-  let new_table = dict.insert(state.finger_table, state.id, #(state.id, node))
+  //predecessor := nil
+  //successor := n
+  let new_table =
+    dict.insert(state.finger_table, state.id, NodeInfo(state.id, node))
   let new_state =
     StateHolder(
       state.id,
-      0,
+      option.None,
       new_table,
       state.storage,
       state.request_num,
@@ -141,7 +106,6 @@ fn create(state: StateHolder(e), node: process.Subject(NodeOperation(e))) {
       state.super,
     )
   new_state
-  //successor := n
 }
 
 // ask node n to find the successor of id
@@ -149,7 +113,7 @@ fn find_successor(
   state: StateHolder(e),
   node: process.Subject(NodeOperation(e)),
   id: Int,
-) {
+) -> NodeInfo(e) {
   // // Yes, that should be a closing square bracket to match the opening parenthesis.
   // // It is a half closed interval.
   // if id ∈ (n, successor] then
@@ -161,17 +125,16 @@ fn find_successor(
 
   //GET FIRST ENTRY OF FINGER TABLE IDK HOW 
   let assert Ok(successor) = dict.get(state.finger_table, state.id + 1)
-  let succ_id = pair.first(successor)
+  let succ_id = successor.id
   let in_range = { id <= succ_id } && { id > state.id }
 
   case in_range {
     True -> {
       successor
-      succ_id
     }
     False -> {
-      let n0_id = closest_preceding_node(state, node, id)
-      //find_successor(n0_state, node, id)
+      let n0 = closest_preceding_node(state, node, id)
+      process.call(n0.subject, 1000, FindSuccessor(id, reply_with: todo))
     }
   }
 }
@@ -202,7 +165,7 @@ fn closest_preceding_node(
   state: StateHolder(e),
   node: process.Subject(NodeOperation(e)),
   id: Int,
-) {
+) -> NodeInfo(e) {
   // for i = m downto 1 do
   //     if (finger[i] ∈ (n, id)) then
   //         return finger[i]
@@ -210,14 +173,17 @@ fn closest_preceding_node(
   search_table(dict.size(state.finger_table), state, id)
 }
 
-// join a Chord ring containing node n'.
+// join a node n into a Chord ring containing node n'.
+// To fix
 fn join(state: StateHolder(e), known_node: process.Subject(NodeOperation(e))) {
-  let predecessor = Nil
+  //  predecessor := nil;
+  //  successor := n'.find successor(n);
+  let predecessor = option.None
   let new_successor = find_successor(state, known_node, state.id)
   let new_state =
     StateHolder(
       state.id,
-      0,
+      predecessor,
       state.finger_table,
       state.storage,
       state.request_num,
@@ -289,6 +255,11 @@ pub fn node_handler(
       actor.continue(new_state)
     }
     ReceiveMessage(s, w) -> {
+      actor.continue(state)
+    }
+    FindSuccessor(id, reply_with) -> {
+      let result = find_successor(state, self, id)
+      process.send(reply_with, result)
       actor.continue(state)
     }
     Finish -> {
