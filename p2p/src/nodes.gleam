@@ -18,6 +18,7 @@ pub type NodeInfo(e) {
 pub type StateHolder(e) {
   StateHolder(
     id: Int,
+    self_subject: Option(process.Subject(NodeOperation(e))),
     pred: Option(NodeInfo(e)),
     // each entry is (index #(node_id, subject))
     finger_table: Dict(Int, NodeInfo(e)),
@@ -45,12 +46,23 @@ pub fn initialize_actors(
     order.Lt -> {
       // Create new actor/node with a base state
       let initial_state =
-        StateHolder(id, option.None, dict.new(), dict.new(), 0, max, super)
+        StateHolder(
+          loop_num,
+          option.None,
+          option.None,
+          dict.new(),
+          dict.new(),
+          0,
+          max,
+          super,
+        )
       let assert Ok(actor) =
         actor.new(initial_state)
         |> actor.on_message(node_handler)
         |> actor.start
       let subject = actor.data
+      // TODO: ID should be hash of IP address
+      actor.send(subject, AddSelfInfo(subject))
       // Add the new node to the list of nodes
       let new_nodes = dict.insert(nodes, loop_num, subject)
 
@@ -70,6 +82,10 @@ pub fn initialize_actors(
   }
 }
 
+fn in_open_closed_interval(x: Int, a: Int, b: Int) -> Bool {
+  { x > a } && { x <= b }
+}
+
 //----------------------------------------NODE FUNCTIONS----------------------------------------------
 
 pub type NodeOperation(e) {
@@ -80,6 +96,7 @@ pub type NodeOperation(e) {
   CreateChordRing
 
   GetState(node: process.Subject(NodeOperation(e)))
+  AddSelfInfo(info: process.Subject(NodeOperation(e)))
 
   Join(existing: process.Subject(NodeOperation(e)))
   Stabilize
@@ -98,6 +115,7 @@ fn create(state: StateHolder(e), node: process.Subject(NodeOperation(e))) {
   let new_state =
     StateHolder(
       state.id,
+      state.self_subject,
       option.None,
       new_table,
       state.storage,
@@ -126,7 +144,8 @@ fn find_successor(
   //GET FIRST ENTRY OF FINGER TABLE IDK HOW 
   let assert Ok(successor) = dict.get(state.finger_table, state.id + 1)
   let succ_id = successor.id
-  let in_range = { id <= succ_id } && { id > state.id }
+  // TODO: Handle wrap around
+  let in_range = in_open_closed_interval(id, state.id, succ_id)
 
   case in_range {
     True -> {
@@ -134,29 +153,35 @@ fn find_successor(
     }
     False -> {
       let n0 = closest_preceding_node(state, node, id)
-      process.call(n0.subject, 1000, FindSuccessor(id, reply_with: todo))
+      process.call(n0.subject, 1000, FindSuccessor(id, todo))
     }
   }
 }
 
 //helper loop for closest_preceeding_node
-fn search_table(curr: Int, state: StateHolder(e), id: Int) {
+fn search_table(curr: Int, state: StateHolder(e), id: Int) -> NodeInfo(e) {
   let table = state.finger_table
 
   case int.compare(curr, 0) {
     order.Gt -> {
       let assert Ok(finger) = dict.get(table, curr)
-      let finger_id = pair.first(finger)
+      let finger_id = finger.id
+      // TODO: Handle wrap around
       let in_range = { finger_id > state.id } && { finger_id < id }
       case in_range {
         True -> {
           //let assert Ok(finger) = dict.get(table, curr)
-          finger_id
+          finger
         }
         _ -> search_table(curr - 1, state, id)
       }
     }
-    _ -> state.id
+    _ -> {
+      // Todo
+      state.self_subject
+      let assert Ok(finger) = dict.get(table, curr)
+      finger
+    }
   }
 }
 
@@ -183,6 +208,7 @@ fn join(state: StateHolder(e), known_node: process.Subject(NodeOperation(e))) {
   let new_state =
     StateHolder(
       state.id,
+      state.self_subject,
       predecessor,
       state.finger_table,
       state.storage,
@@ -239,6 +265,7 @@ pub fn node_handler(
       let new_state =
         StateHolder(
           state.id,
+          state.self_subject,
           state.pred,
           state.finger_table,
           state.storage,
@@ -254,13 +281,35 @@ pub fn node_handler(
       // )
       actor.continue(new_state)
     }
+    AddSelfInfo(info) -> {
+      let new_state =
+        StateHolder(
+          state.id,
+          option.Some(info),
+          state.pred,
+          state.finger_table,
+          state.storage,
+          state.request_num,
+          state.max_num,
+          state.super,
+        )
+      actor.continue(new_state)
+    }
     ReceiveMessage(s, w) -> {
       actor.continue(state)
     }
     FindSuccessor(id, reply_with) -> {
-      let result = find_successor(state, self, id)
-      process.send(reply_with, result)
-      actor.continue(state)
+      case state.self_subject {
+        option.Some(subject) -> {
+          let result = find_successor(state, subject, id)
+          process.send(reply_with, result)
+          actor.continue(state)
+        }
+        option.None -> {
+          // Should not happen
+          actor.continue(state)
+        }
+      }
     }
     Finish -> {
       process.send(state.super, Finish)
