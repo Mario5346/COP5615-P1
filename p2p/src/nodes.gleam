@@ -1,5 +1,6 @@
 import gleam/dict.{type Dict}
 import gleam/erlang/process
+import gleam/float
 import gleam/int
 import gleam/io
 import gleam/list
@@ -95,12 +96,12 @@ pub type NodeOperation(e) {
   ClosestPrecedingNode(id: Int, caller: process.Subject(NodeOperation(e)))
   CreateChordRing
 
-  GetState(node: process.Subject(NodeOperation(e)))
+  GetState(node: process.Subject(StateHolder(e)))
   AddSelfInfo(info: process.Subject(NodeOperation(e)))
 
   Join(existing: process.Subject(NodeOperation(e)))
   Stabilize
-  Notify(potential_predecessor: process.Subject(NodeOperation(e)))
+  Notify(potential_predecessor: NodeInfo(e))
   FixFingers
   CheckPredecessor
   Finish
@@ -127,11 +128,7 @@ fn create(state: StateHolder(e), node: process.Subject(NodeOperation(e))) {
 }
 
 // ask node n to find the successor of id
-fn find_successor(
-  state: StateHolder(e),
-  node: process.Subject(NodeOperation(e)),
-  id: Int,
-) -> NodeInfo(e) {
+fn find_successor(state: StateHolder(e), id: Int) -> NodeInfo(e) {
   // // Yes, that should be a closing square bracket to match the opening parenthesis.
   // // It is a half closed interval.
   // if id ∈ (n, successor] then
@@ -152,7 +149,7 @@ fn find_successor(
       successor
     }
     False -> {
-      let n0 = closest_preceding_node(state, node, id)
+      let n0 = closest_preceding_node(state, id)
       process.call(n0.subject, 1000, FindSuccessor(id, todo))
     }
   }
@@ -186,11 +183,7 @@ fn search_table(curr: Int, state: StateHolder(e), id: Int) -> NodeInfo(e) {
 }
 
 // search the local table for the highest predecessor of id, returns pred id
-fn closest_preceding_node(
-  state: StateHolder(e),
-  node: process.Subject(NodeOperation(e)),
-  id: Int,
-) -> NodeInfo(e) {
+fn closest_preceding_node(state: StateHolder(e), id: Int) -> NodeInfo(e) {
   // for i = m downto 1 do
   //     if (finger[i] ∈ (n, id)) then
   //         return finger[i]
@@ -222,27 +215,122 @@ fn join(state: StateHolder(e), known_node: process.Subject(NodeOperation(e))) {
 // // called periodically. n asks the successor
 // // about its predecessor, verifies if n's immediate
 // // successor is consistent, and tells the successor about n
-// fn stabilize(){
-//       x = successor.predecessor
-//     if x ∈ (n, successor) then
-//         successor := x
-//     successor.notify(n)
-// }
+fn stabilize(state: StateHolder(e)) {
+  // x = successor.predecessor
+  // if x ∈ (n, successor) then
+  //     successor := x
+  // successor.notify(n)
+  let successor = dict.get(state.finger_table, state.id + 1)
+  case successor {
+    Ok(succ) -> {
+      let successor_state = process.call(succ.subject, 1000, GetState())
+      let x = successor_state.pred
+      let in_range = { x > state.id } && { x < succ.id }
+      case in_range {
+        True -> {
+          let new_successor = x
+        }
+        _ -> todo
+      }
+      case state.self_subject {
+        option.Some(subject) ->
+          process.send(succ.subject, Notify(NodeInfo(state.id, subject)))
+        _ -> todo
+      }
+    }
+    _ -> {
+      todo
+      // Should not happen
+    }
+  }
+}
 
 // // n' thinks it might be our predecessor.
-// fn notify(n'){
-//     if predecessor is nil or n'∈(predecessor, n) then
-//         predecessor := n'
-// }
+fn notify(state: StateHolder(e), n0: NodeInfo(e)) {
+  //     if predecessor is nil or n'∈(predecessor, n) then
+  //         predecessor := n'
+  case state.pred {
+    option.Some(p) -> {
+      // TODO: Handle wrap around
+      let in_range = { n0.id > p.id } && { n0.id < state.id }
+      // n's id is between predecessor and current node id
+      case in_range {
+        True -> {
+          let new_state =
+            StateHolder(
+              state.id,
+              state.self_subject,
+              n0.id,
+              state.finger_table,
+              state.storage,
+              state.request_num,
+              state.max_num,
+              state.super,
+            )
+          new_state
+        }
+        _ -> state
+      }
+    }
+    // predecessor is nil
+    option.None -> {
+      let new_state =
+        StateHolder(
+          state.id,
+          state.self_subject,
+          n0.id,
+          state.finger_table,
+          state.storage,
+          state.request_num,
+          state.max_num,
+          state.super,
+        )
+      new_state
+    }
+  }
+}
 
 // // called periodically. refreshes finger table entries.
 // // next stores the index of the finger to fix
-// fn fix_fingers(){
-//     next := next + 1
-//     if next > m then
-//         next := 1
-//     finger[next] := find_successor(n+2next-1);
-// }
+fn fix_fingers(next: Int, m: Int, state: StateHolder(e)) -> StateHolder(e) {
+  //     next := next + 1
+  //     if next > m then
+  //         next := 1
+  //     finger[next] := find_successor(n+2next-1);
+  let new_next = next + 1
+  let final_next = case int.compare(new_next, m) {
+    order.Gt -> 1
+    _ -> new_next
+  }
+
+  let loc = int.power(2, int.to_float(final_next - 1))
+  let final_loc = case loc {
+    Ok(v) -> float.round(v)
+    _ -> 0
+  }
+  // TODO: Change table locations to either 1234 or 1248...
+  let new_finger = find_successor(state, state.id + final_loc)
+  let new_table = dict.insert(state.finger_table, final_next, new_finger)
+  let new_state =
+    StateHolder(
+      state.id,
+      state.self_subject,
+      state.pred,
+      new_table,
+      state.storage,
+      state.request_num,
+      state.max_num,
+      state.super,
+    )
+  new_state
+}
+
+// called periodically. checks whether predecessor has failed.
+fn check_predecessor() {
+  todo
+  //  if (predecessor has failed)
+  //  predecessor = nil;
+}
 
 fn send_requests(from: process.Subject(NodeOperation(e)), num_requests: Int) {
   todo
@@ -300,8 +388,8 @@ pub fn node_handler(
     }
     FindSuccessor(id, reply_with) -> {
       case state.self_subject {
-        option.Some(subject) -> {
-          let result = find_successor(state, subject, id)
+        option.Some(_subject) -> {
+          let result = find_successor(state, id)
           process.send(reply_with, result)
           actor.continue(state)
         }
@@ -310,6 +398,40 @@ pub fn node_handler(
           actor.continue(state)
         }
       }
+    }
+    CreateChordRing -> {
+      case state.self_subject {
+        option.Some(subject) -> {
+          let new_state = create(state, subject)
+          actor.continue(new_state)
+        }
+        option.None -> {
+          // Should not happen
+          actor.continue(state)
+        }
+      }
+    }
+    Join(existing) -> {
+      let new_state = join(state, existing)
+      actor.continue(new_state)
+    }
+    GetState(node) -> {
+      process.send(node, state)
+      actor.continue(state)
+    }
+    Stabilize -> {
+      // stabilize(state)
+      actor.continue(state)
+    }
+    Notify(potential_predecessor) -> {
+      let new_state = notify(state, potential_predecessor)
+      actor.continue(new_state)
+    }
+    FixFingers -> {
+      let m = 4
+      // TODO: Change to 8 later
+      let new_state = fix_fingers(0, m, state)
+      actor.continue(new_state)
     }
     Finish -> {
       process.send(state.super, Finish)
