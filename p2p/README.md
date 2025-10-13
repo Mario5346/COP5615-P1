@@ -1,24 +1,21 @@
-# p2p
+# Chord Protocol
 
-[![Package Version](https://img.shields.io/hexpm/v/p2p)](https://hex.pm/packages/p2p)
-[![Hex Docs](https://img.shields.io/badge/hex-docs-ffaff3)](https://hexdocs.pm/p2p/)
+## Team members:
 
-```sh
-gleam add p2p@1
-```
-```gleam
-import p2p
+Srikar Tadeparti,
+Mario Ponte Garofalo
 
-pub fn main() -> Nil {
-  // TODO: An example of the project in use
-}
-```
+Team 65
 
-Further documentation can be found at <https://hexdocs.pm/p2p>.
+## What is working
 
-## Development
+You can run the code using the following command:
 
-```sh
-gleam run   # Run the project
-gleam test  # Run the tests
-```
+`gleam run project3 <nodes> <requests>`
+
+For example:
+
+`gleam run project3 10 1`
+
+## Largest tested values
+

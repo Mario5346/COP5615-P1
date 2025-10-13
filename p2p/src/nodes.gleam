@@ -1,13 +1,14 @@
 import gleam/bit_array
-import gleam/bytes_tree
 import gleam/crypto.{Sha1}
 import gleam/dict.{type Dict}
 import gleam/erlang/process
 import gleam/float
 import gleam/int
+import gleam/io
 import gleam/option.{type Option}
 import gleam/order
 import gleam/otp/actor
+import gleam/pair
 
 // We will be implementing the Chord protocol for a distributed hash table. This file contains the code for each node.
 
@@ -43,7 +44,7 @@ pub fn initialize_actors(
   //parent: process.Subject(String),
   super: process.Subject(NodeOperation(e)),
 ) -> dict.Dict(Int, process.Subject(NodeOperation(e))) {
-  case int.compare(loop_num, max) {
+  case int.compare(loop_num, num_nodes) {
     order.Lt -> {
       // Create new actor/node with a base state
       let initial_state =
@@ -62,20 +63,20 @@ pub fn initialize_actors(
         |> actor.on_message(node_handler)
         |> actor.start
       let subject = actor.data
-      // TODO: ID should be hash of IP address
+
       actor.send(subject, AddSelfInfo(subject))
+      // Add the new node to the list of nodes
+      let new_nodes = dict.insert(nodes, loop_num, subject)
+      // Call Create Chord Ring on first node and Join on the rest
       case loop_num {
         0 -> actor.send(subject, CreateChordRing)
         _ -> {
-          let assert Ok(node) = dict.get(nodes, 0)
-          actor.send(subject, Join(node))
+          let assert Ok(node) = dict.get(new_nodes, 0)
+          //actor.send(subject, Join(node))
+          Nil
         }
       }
-
-      // Todo: Call Create Chord Ring on first node and Join on the rest
-
-      // Add the new node to the list of nodes
-      let new_nodes = dict.insert(nodes, loop_num, subject)
+      actor.send(subject, Start(num_nodes))
 
       let final =
         initialize_actors(
@@ -183,11 +184,11 @@ pub type NodeOperation(e) {
   )
   FindSuccessor(
     id: Int,
-    reply_with: process.Subject(NodeInfo(e)),
+    reply_with: process.Subject(#(NodeInfo(e), Int)),
     jump_num: Int,
   )
   CreateChordRing
-
+  Start(nodes: Int)
   GetState(reply_with: process.Subject(StateHolder(e)))
   AddSelfInfo(info: process.Subject(NodeOperation(e)))
   HopNumber(reply_with: process.Subject(Int), number: Int)
@@ -206,6 +207,7 @@ pub type NodeOperation(e) {
 fn create(state: StateHolder(e), node: process.Subject(NodeOperation(e))) {
   //predecessor := nil
   //successor := n
+  // Todo: update finger table implementation
   let new_table =
     dict.insert(state.finger_table, state.id, NodeInfo(state.id, node))
   let new_state =
@@ -223,7 +225,11 @@ fn create(state: StateHolder(e), node: process.Subject(NodeOperation(e))) {
 }
 
 // ask node n to find the successor of id. State represents n. id can be either a key or a node id.
-fn find_successor(state: StateHolder(e), id: Int, jump_num: Int) -> NodeInfo(e) {
+fn find_successor(
+  state: StateHolder(e),
+  id: Int,
+  jump: Int,
+) -> #(NodeInfo(e), Int) {
   // if id ∈ (n, successor] then
   //     return successor
   // else
@@ -231,19 +237,23 @@ fn find_successor(state: StateHolder(e), id: Int, jump_num: Int) -> NodeInfo(e) 
   //     n0 := closest_preceding_node(id)
   //     return n0.find_successor(id)
 
-  //GET FIRST ENTRY OF FINGER TABLE IDK HOW 
-  let assert Ok(successor) = dict.get(state.finger_table, state.id + 1)
+  // echo "Finger table: "
+  // echo state.finger_table
+  let assert Ok(successor) = dict.get(state.finger_table, 0)
   let succ_id = successor.id
   // automatically handles hashing
   let in_range = in_open_closed_interval(id, state.id, succ_id)
+  // echo "after assert"
 
   case in_range {
     True -> {
-      successor
+      #(successor, jump)
     }
     False -> {
       let n0 = closest_preceding_node(state, id)
-      process.call(n0.subject, 1000, FindSuccessor(id, _, jump_num + 1))
+      let result =
+        process.call(n0.subject, 1000, FindSuccessor(id, _, jump + 1))
+      result
     }
   }
 }
@@ -252,8 +262,9 @@ fn find_successor(state: StateHolder(e), id: Int, jump_num: Int) -> NodeInfo(e) 
 fn search_table(curr: Int, state: StateHolder(e), id: Int) -> NodeInfo(e) {
   let table = state.finger_table
 
-  case int.compare(curr, 0) {
+  case int.compare(curr - 1, 0) {
     order.Gt -> {
+      // echo state.finger_table
       let assert Ok(finger) = dict.get(table, curr)
       let finger_id = finger.id
       // automatically handles hashing
@@ -294,12 +305,13 @@ fn join(
   //  predecessor := nil;
   //  successor := n'.find successor(n);
   let predecessor = option.None
+  // io.print("finding succ............")
   let new_successor =
     process.call(existing_chord_node, 1000, FindSuccessor(state.id, _, 0))
   // replace entry for successor in finger table
   let new_table =
     dict.delete(state.finger_table, state.id + 1)
-    |> dict.insert(state.id + 1, new_successor)
+    |> dict.insert(state.id + 1, pair.first(new_successor))
 
   let new_state =
     StateHolder(
@@ -457,7 +469,8 @@ fn fix_fingers(next: Int, m: Int, state: StateHolder(e)) -> StateHolder(e) {
   }
   // TODO: Change table locations to either 1234 or 1248...
   let new_finger = find_successor(state, state.id + final_loc, 0)
-  let new_table = dict.insert(state.finger_table, final_next, new_finger)
+  let new_table =
+    dict.insert(state.finger_table, final_next, pair.first(new_finger))
   let new_state =
     StateHolder(
       state.id,
@@ -473,30 +486,75 @@ fn fix_fingers(next: Int, m: Int, state: StateHolder(e)) -> StateHolder(e) {
 }
 
 // called periodically. checks whether predecessor has failed.
-fn check_predecessor() {
-  todo
-  //  if (predecessor has failed)
-  //  predecessor = nil;
-}
+// fn check_predecessor() {
+//   todo
+//   //  if (predecessor has failed)
+//   //  predecessor = nil;
+// }
 
-fn send_requests(from: NodeInfo(e), num_requests: Int) {
-  todo
+fn send_requests(
+  state: StateHolder(e),
+  from: NodeInfo(e),
+  num_requests: Int,
+  jumps: Int,
+) {
   //process.sleep(1000)
 
   //Send requests
-  case int.modulo(num_requests, 2) {
-    Ok(0) -> {
-      let result =
-        process.call(from.subject, 1000, AddKeyToRing(num_requests, 0.0, _, 0))
-      Nil
-    }
+  case num_requests {
+    0 -> jumps
     _ -> {
-      process.call(from.subject, 1000, FindSuccessor(num_requests - 1, _, 0))
-      Nil
+      case int.modulo(num_requests, 2) {
+        Ok(0) -> {
+          let result = find_successor(state, state.id, 0)
+          // process.call(from.subject, 1000, AddKeyToRing(
+          //   num_requests,
+          //   0.0,
+          //   _,
+          //   0,
+          // ))
+          pair.second(result)
+        }
+        _ -> {
+          // io.print("finding succ------")
+          let result = find_successor(state, state.id, 0)
+          // process.call(from.subject, 1000, FindSuccessor(
+          //   num_requests - 1,
+          //   _,
+          //   0,
+          // ))
+          let _from = from
+          pair.second(result)
+        }
+      }
+      //send_requests(from, num_requests - 1, jumps)
     }
   }
+}
 
-  send_requests(from, num_requests - 1)
+fn logic_loop(state: StateHolder(e), num: Int, n: Int) -> Int {
+  // send_requests(num)
+  case num {
+    0 -> {
+      actor.send(state.super, Finish)
+      0
+    }
+    _ -> {
+      case state.self_subject {
+        option.None -> {
+          stabilize(state)
+          fix_fingers(0, 8, state)
+          send_requests(state, NodeInfo(state.id, state.super), num, 0)
+          logic_loop(state, num - 1, n)
+          2
+        }
+        _ -> {
+          let assert Ok(log2) = float.logarithm(int.to_float(n))
+          float.round(log2)
+        }
+      }
+    }
+  }
 }
 
 pub fn node_handler(
@@ -519,7 +577,7 @@ pub fn node_handler(
       actor.continue(new_state)
     }
     SearchKey(key, reply_with, jump) -> {
-      let node_with_key = find_successor(state, key, jump)
+      let node_with_key = pair.first(find_successor(state, key, jump))
       let node_state = process.call(node_with_key.subject, 1000, GetState)
       let value = dict.get(node_state.storage, key)
       case value {
@@ -535,7 +593,7 @@ pub fn node_handler(
       }
     }
     AddKeyToRing(key, value, reply, jump) -> {
-      let node_with_key = find_successor(state, key, jump)
+      let node_with_key = pair.first(find_successor(state, key, jump))
       process.send(node_with_key.subject, AddKeyToStorage(key, value))
       process.send(reply, jump)
       actor.continue(state)
@@ -556,17 +614,10 @@ pub fn node_handler(
       actor.continue(new_state)
     }
     FindSuccessor(id, reply_with, jump) -> {
-      case state.self_subject {
-        option.Some(_subject) -> {
-          let result = find_successor(state, id, jump)
-          process.send(reply_with, result)
-          actor.continue(state)
-        }
-        option.None -> {
-          // Should not happen
-          actor.continue(state)
-        }
-      }
+      // io.print("FOUND self subject ---------------")
+      let result = find_successor(state, id, jump)
+      process.send(reply_with, result)
+      actor.continue(state)
     }
     CreateChordRing -> {
       case state.self_subject {
@@ -598,22 +649,40 @@ pub fn node_handler(
       actor.continue(new_state)
     }
     FixFingers -> {
-      let m = 4
-      // TODO: Change to 8 later
+      let m = 8
       let new_state = fix_fingers(0, m, state)
       actor.continue(new_state)
     }
     CheckPredecessor -> {
-      check_predecessor()
+      //check_predecessor()
       actor.continue(state)
     }
     HopNumber(reply, number) -> {
       actor.send(reply, number)
       actor.continue(state)
     }
+    Start(nodes) -> {
+      {
+        case state.self_subject {
+          option.Some(_subject) -> {
+            let jumps = logic_loop(state, state.max_num, nodes)
+            let assert Ok(log) = float.logarithm(int.to_float(state.max_num))
+            process.sleep(1000 * float.round(log) * jumps)
+            // send_requests(NodeInfo(state.id, subject), state.max_num, 0)
+            io.print("Total hops: " <> int.to_string(jumps))
+            actor.send(state.super, Finish)
+            actor.continue(state)
+          }
+
+          _ -> actor.continue(state)
+        }
+      }
+    }
+
     Finish -> {
       process.send(state.super, Finish)
-      actor.continue(state)
+      // actor.continue(state)
+      actor.stop()
     }
   }
 }
