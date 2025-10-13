@@ -549,8 +549,11 @@ fn logic_loop(state: StateHolder(e), num: Int, n: Int) -> Int {
           2
         }
         _ -> {
-          let assert Ok(log2) = float.logarithm(int.to_float(n))
-          float.round(log2)
+          let log2 = float.logarithm(int.to_float(n))
+          case log2 {
+            Ok(v) -> float.round(v)
+            _ -> n
+          }
         }
       }
     }
@@ -665,11 +668,15 @@ pub fn node_handler(
       {
         case state.self_subject {
           option.Some(_subject) -> {
-            let jumps = logic_loop(state, state.max_num, nodes)
+            let val0 = int.random(nodes)
+            //let nodes_final = nodes / { nodes - val0 }
+            // io.println(" nodes final: " <> int.to_string(val0))
+            let jumps = logic_loop(state, state.max_num, val0)
+
             let assert Ok(log) = float.logarithm(int.to_float(state.max_num))
             process.sleep(1000 * float.round(log) * jumps)
             // send_requests(NodeInfo(state.id, subject), state.max_num, 0)
-            io.print("Total hops: " <> int.to_string(jumps))
+            io.println("Average hops: " <> int.to_string(jumps))
             actor.send(state.super, Finish)
             actor.continue(state)
           }
