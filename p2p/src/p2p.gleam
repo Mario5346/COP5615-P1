@@ -7,8 +7,6 @@ import gleam/list
 import gleam/pair
 import nodes
 
-//https://bitbucket.org/felixy12/cos518_project/src/master/Chord_Python/src/
-
 pub fn waiter(nodes: List(#(Int, process.Subject(nodes.NodeOperation(e))))) {
   case list.first(nodes) {
     Ok(sub) -> {

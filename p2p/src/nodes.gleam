@@ -1,3 +1,6 @@
+import gleam/bit_array
+import gleam/bytes_tree
+import gleam/crypto.{Sha1}
 import gleam/dict.{type Dict}
 import gleam/erlang/process
 import gleam/float
@@ -61,6 +64,13 @@ pub fn initialize_actors(
       let subject = actor.data
       // TODO: ID should be hash of IP address
       actor.send(subject, AddSelfInfo(subject))
+      case loop_num {
+        0 -> actor.send(subject, CreateChordRing)
+        _ -> {
+          let assert Ok(node) = dict.get(nodes, 0)
+          actor.send(subject, Join(node))
+        }
+      }
 
       // Todo: Call Create Chord Ring on first node and Join on the rest
 
@@ -84,23 +94,107 @@ pub fn initialize_actors(
 }
 
 fn in_open_closed_interval(x: Int, a: Int, b: Int) -> Bool {
-  { x > a } && { x <= b }
+  let x_hash = crypto.hash(Sha1, <<x>>)
+  let a_hash = crypto.hash(Sha1, <<a>>)
+  let b_hash = crypto.hash(Sha1, <<b>>)
+
+  case bit_array.compare(a_hash, b_hash) {
+    order.Gt -> {
+      // wrap around case. { x > a && x > b } || { x < a && x <= b }
+      case bit_array.compare(x_hash, a_hash) {
+        order.Lt -> {
+          case bit_array.compare(x_hash, b_hash) {
+            order.Gt -> False
+            _ -> True
+          }
+        }
+        order.Gt -> {
+          case bit_array.compare(x_hash, b_hash) {
+            order.Gt -> True
+            _ -> False
+          }
+        }
+        _ -> False
+      }
+    }
+    // { x > a } && { x <= b }
+    _ -> {
+      case bit_array.compare(x_hash, a_hash) {
+        order.Gt -> {
+          case bit_array.compare(x_hash, b_hash) {
+            order.Gt -> False
+            _ -> True
+          }
+        }
+        _ -> False
+      }
+    }
+  }
+}
+
+fn in_open_interval(x: Int, a: Int, b: Int) -> Bool {
+  let x_hash = crypto.hash(Sha1, <<x>>)
+  let a_hash = crypto.hash(Sha1, <<a>>)
+  let b_hash = crypto.hash(Sha1, <<b>>)
+
+  case bit_array.compare(a_hash, b_hash) {
+    order.Gt -> {
+      // wrap around case. { x > a && x > b } || { x < a && x < b }
+      case bit_array.compare(x_hash, a_hash) {
+        order.Lt -> {
+          case bit_array.compare(x_hash, b_hash) {
+            order.Lt -> True
+            _ -> False
+          }
+        }
+        order.Gt -> {
+          case bit_array.compare(x_hash, b_hash) {
+            order.Gt -> True
+            _ -> False
+          }
+        }
+        _ -> False
+      }
+    }
+    // { x > a } && { x < b }
+    _ -> {
+      case bit_array.compare(x_hash, a_hash) {
+        order.Gt -> {
+          case bit_array.compare(x_hash, b_hash) {
+            order.Lt -> True
+            _ -> False
+          }
+        }
+        _ -> False
+      }
+    }
+  }
 }
 
 //----------------------------------------NODE FUNCTIONS----------------------------------------------
 
 pub type NodeOperation(e) {
-  SearchKey(key: Int, reply_with: process.Subject(Float))
-  AddKeyToRing(key: Int, value: Float)
-  FindSuccessor(id: Int, reply_with: process.Subject(NodeInfo(e)))
+  SearchKey(key: Int, reply_with: process.Subject(Float), jump: Int)
+  AddKeyToRing(
+    key: Int,
+    value: Float,
+    reply_with: process.Subject(Int),
+    jump_num: Int,
+  )
+  FindSuccessor(
+    id: Int,
+    reply_with: process.Subject(NodeInfo(e)),
+    jump_num: Int,
+  )
   CreateChordRing
 
   GetState(reply_with: process.Subject(StateHolder(e)))
   AddSelfInfo(info: process.Subject(NodeOperation(e)))
+  HopNumber(reply_with: process.Subject(Int), number: Int)
 
   // private
   AddKeyToStorage(key: Int, value: Float)
-  Join(n0: NodeInfo(e))
+  Join(n0: process.Subject(NodeOperation(e)))
   Stabilize
   Notify(potential_predecessor: NodeInfo(e))
   FixFingers
@@ -128,8 +222,8 @@ fn create(state: StateHolder(e), node: process.Subject(NodeOperation(e))) {
   new_state
 }
 
-// ask node n to find the successor of id. State represents n.
-fn find_successor(state: StateHolder(e), id: Int) -> NodeInfo(e) {
+// ask node n to find the successor of id. State represents n. id can be either a key or a node id.
+fn find_successor(state: StateHolder(e), id: Int, jump_num: Int) -> NodeInfo(e) {
   // if id ∈ (n, successor] then
   //     return successor
   // else
@@ -140,7 +234,7 @@ fn find_successor(state: StateHolder(e), id: Int) -> NodeInfo(e) {
   //GET FIRST ENTRY OF FINGER TABLE IDK HOW 
   let assert Ok(successor) = dict.get(state.finger_table, state.id + 1)
   let succ_id = successor.id
-  // TODO: Handle wrap around
+  // automatically handles hashing
   let in_range = in_open_closed_interval(id, state.id, succ_id)
 
   case in_range {
@@ -149,7 +243,7 @@ fn find_successor(state: StateHolder(e), id: Int) -> NodeInfo(e) {
     }
     False -> {
       let n0 = closest_preceding_node(state, id)
-      process.call(n0.subject, 1000, FindSuccessor(id, _))
+      process.call(n0.subject, 1000, FindSuccessor(id, _, jump_num + 1))
     }
   }
 }
@@ -162,8 +256,8 @@ fn search_table(curr: Int, state: StateHolder(e), id: Int) -> NodeInfo(e) {
     order.Gt -> {
       let assert Ok(finger) = dict.get(table, curr)
       let finger_id = finger.id
-      // TODO: Handle wrap around
-      let in_range = { finger_id > state.id } && { finger_id < id }
+      // automatically handles hashing
+      let in_range = in_open_interval(finger_id, state.id, id)
       case in_range {
         True -> {
           //let assert Ok(finger) = dict.get(table, curr)
@@ -201,7 +295,7 @@ fn join(
   //  successor := n'.find successor(n);
   let predecessor = option.None
   let new_successor =
-    process.call(existing_chord_node, 1000, FindSuccessor(state.id, _))
+    process.call(existing_chord_node, 1000, FindSuccessor(state.id, _, 0))
   // replace entry for successor in finger table
   let new_table =
     dict.delete(state.finger_table, state.id + 1)
@@ -237,7 +331,7 @@ fn stabilize(state: StateHolder(e)) {
       case x {
         option.Some(node) -> {
           let x_id = node.id
-          let in_range = { x_id > state.id } && { x_id < succ.id }
+          let in_range = in_open_interval(x_id, state.id, succ.id)
           case in_range {
             // Update successor to x
             True -> {
@@ -305,7 +399,7 @@ fn notify(state: StateHolder(e), n0: NodeInfo(e)) -> StateHolder(e) {
   case state.pred {
     option.Some(p) -> {
       // TODO: Handle wrap around
-      let in_range = { n0.id > p.id } && { n0.id < state.id }
+      let in_range = in_open_interval(n0.id, p.id, state.id)
       // n's id is between predecessor and this node
       case in_range {
         True -> {
@@ -362,7 +456,7 @@ fn fix_fingers(next: Int, m: Int, state: StateHolder(e)) -> StateHolder(e) {
     _ -> 0
   }
   // TODO: Change table locations to either 1234 or 1248...
-  let new_finger = find_successor(state, state.id + final_loc)
+  let new_finger = find_successor(state, state.id + final_loc, 0)
   let new_table = dict.insert(state.finger_table, final_next, new_finger)
   let new_state =
     StateHolder(
@@ -385,13 +479,24 @@ fn check_predecessor() {
   //  predecessor = nil;
 }
 
-fn send_requests(from: process.Subject(NodeOperation(e)), num_requests: Int) {
+fn send_requests(from: NodeInfo(e), num_requests: Int) {
   todo
   //process.sleep(1000)
 
   //Send requests
+  case int.modulo(num_requests, 2) {
+    Ok(0) -> {
+      let result =
+        process.call(from.subject, 1000, AddKeyToRing(num_requests, 0.0, _, 0))
+      Nil
+    }
+    _ -> {
+      process.call(from.subject, 1000, FindSuccessor(num_requests - 1, _, 0))
+      Nil
+    }
+  }
 
-  //send_requests(from, num_requests - 1)
+  send_requests(from, num_requests - 1)
 }
 
 pub fn node_handler(
@@ -413,8 +518,8 @@ pub fn node_handler(
         )
       actor.continue(new_state)
     }
-    SearchKey(key, reply_with) -> {
-      let node_with_key = find_successor(state, key)
+    SearchKey(key, reply_with, jump) -> {
+      let node_with_key = find_successor(state, key, jump)
       let node_state = process.call(node_with_key.subject, 1000, GetState)
       let value = dict.get(node_state.storage, key)
       case value {
@@ -429,9 +534,10 @@ pub fn node_handler(
         }
       }
     }
-    AddKeyToRing(key, value) -> {
-      let node_with_key = find_successor(state, key)
+    AddKeyToRing(key, value, reply, jump) -> {
+      let node_with_key = find_successor(state, key, jump)
       process.send(node_with_key.subject, AddKeyToStorage(key, value))
+      process.send(reply, jump)
       actor.continue(state)
     }
     AddKeyToStorage(key, value) -> {
@@ -449,10 +555,10 @@ pub fn node_handler(
         )
       actor.continue(new_state)
     }
-    FindSuccessor(id, reply_with) -> {
+    FindSuccessor(id, reply_with, jump) -> {
       case state.self_subject {
         option.Some(_subject) -> {
-          let result = find_successor(state, id)
+          let result = find_successor(state, id, jump)
           process.send(reply_with, result)
           actor.continue(state)
         }
@@ -475,7 +581,7 @@ pub fn node_handler(
       }
     }
     Join(existing_chord_node) -> {
-      let new_state = join(state, existing_chord_node.subject)
+      let new_state = join(state, existing_chord_node)
       actor.continue(new_state)
     }
     GetState(caller) -> {
@@ -499,6 +605,10 @@ pub fn node_handler(
     }
     CheckPredecessor -> {
       check_predecessor()
+      actor.continue(state)
+    }
+    HopNumber(reply, number) -> {
+      actor.send(reply, number)
       actor.continue(state)
     }
     Finish -> {
