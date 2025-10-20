@@ -1,3 +1,4 @@
+import gleam/crypto
 import gleam/dict.{type Dict}
 import gleam/erlang/process
 import gleam/float
