@@ -1,24 +1,24 @@
-# p2p
+# Chord Protocol
 
-[![Package Version](https://img.shields.io/hexpm/v/p2p)](https://hex.pm/packages/p2p)
-[![Hex Docs](https://img.shields.io/badge/hex-docs-ffaff3)](https://hexdocs.pm/p2p/)
+## Team members:
 
-```sh
-gleam add p2p@1
-```
-```gleam
-import p2p
+Srikar Tadeparti,
+Mario Ponte Garofalo
 
-pub fn main() -> Nil {
-  // TODO: An example of the project in use
-}
-```
+Team 65
 
-Further documentation can be found at <https://hexdocs.pm/p2p>.
+## What is working
 
-## Development
+You can run the code using the following command:
 
-```sh
-gleam run   # Run the project
-gleam test  # Run the tests
-```
+`gleam run project3 <nodes> <requests>`
+
+For example:
+
+`gleam run project3 10 1`
+
+Everything seems to be working as expected, though the average number of hops seems to be a bit lower than expected. Since we are not deleting nodes in our implementation, we left did not implement the check predecessor function as it is not necessary if nodes do not leave or fail.
+
+## Largest tested values
+
+We managed to work with numbers of up to 20 requests with 500 nodes, but due to time constraints could not test bigger, more time consumming values
