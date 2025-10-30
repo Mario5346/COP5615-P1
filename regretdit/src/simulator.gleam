@@ -1,7 +1,8 @@
 import regretdit.{
   type EngineMessage, CreateComment, CreatePost, CreateSubregretdit,
-  DownvotePost, GetAllSubregretdits, GetUser, GetUserFeed, GetUserMessages,
-  JoinSubregretdit, RegisterUser, SendMessage, Shutdown, UpvotePost,
+  DownvoteComment, DownvotePost, GetAllSubregretdits, GetUser, GetUserFeed,
+  GetUserMessages, JoinSubregretdit, RegisterUser, SendMessage, Shutdown,
+  UpvoteComment, UpvotePost,
 }
 
 // import gleam/dict.{type Dict}
@@ -335,15 +336,36 @@ pub fn run_simulation(engine: Subject(EngineMessage), config: SimulatorConfig) {
               case pick_random(posts) {
                 Some(post) -> {
                   let vote_reply = process.new_subject()
-                  case int.random(2) {
-                    0 -> process.send(engine, UpvotePost(post.id, vote_reply))
-                    _ -> process.send(engine, DownvotePost(post.id, vote_reply))
+                  case int.random(3) {
+                    0 -> process.send(engine, DownvotePost(post.id, vote_reply))
+                    _ -> process.send(engine, UpvotePost(post.id, vote_reply))
                   }
                   let _ = process.receive(vote_reply, 1000)
+                  case pick_random(post.comments) {
+                    Some(comment) -> {
+                      let comment_vote_reply = process.new_subject()
+                      case int.random(3) {
+                        0 ->
+                          process.send(
+                            engine,
+                            DownvoteComment(comment, comment_vote_reply),
+                          )
+                        _ ->
+                          process.send(
+                            engine,
+                            UpvoteComment(comment, comment_vote_reply),
+                          )
+                      }
+                      let _ = process.receive(comment_vote_reply, 1000)
+                      Nil
+                    }
+                    None -> Nil
+                  }
                   Nil
                 }
                 None -> Nil
               }
+
             _ -> Nil
           }
         }
@@ -439,9 +461,12 @@ pub fn run_simulation(engine: Subject(EngineMessage), config: SimulatorConfig) {
   case list.first(user_ids) {
     Ok(sample_user_id) -> {
       let user_reply = process.new_subject()
-      process.send(engine, GetUser(sample_user_id, user_reply))
-      case process.receive(user_reply, 1000) {
-        Ok(Ok(user)) ->
+      // process.send(engine, GetUser(sample_user_id, user_reply))
+      process.sleep(1000)
+      process.send(engine, GetUser("user_400", user_reply))
+      case process.receive(user_reply, 10_000) {
+        Ok(Ok(user)) -> {
+          echo user
           io.println(
             "\nSample User Stats:\n  Username: "
             <> user.username
@@ -450,6 +475,7 @@ pub fn run_simulation(engine: Subject(EngineMessage), config: SimulatorConfig) {
             <> "\n  Joined Subregretdits: "
             <> int.to_string(list.length(user.joined_subregretdits)),
           )
+        }
         _ -> Nil
       }
     }
@@ -467,7 +493,7 @@ pub fn main() {
         SimulatorConfig(
           num_users: 500,
           num_subregretdits: 20,
-          simulation_ticks: 500,
+          simulation_ticks: 250,
           zipf_exponent: 1.5,
         )
 

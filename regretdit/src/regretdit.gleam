@@ -1,6 +1,7 @@
 import gleam/dict.{type Dict}
 import gleam/erlang/process.{type Subject}
 import gleam/int
+import gleam/io
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/otp/actor
@@ -329,6 +330,7 @@ fn handle_message(
     }
 
     DownvoteComment(comment_id, reply) -> {
+      // io.println("downvote comment called")
       let result = downvote_comment(state, comment_id)
       case result {
         Ok(new_state) -> {
@@ -793,6 +795,7 @@ fn upvote_post(
   state: EngineState,
   post_id: PostId,
 ) -> Result(EngineState, Error) {
+  // io.println("upvote post")
   case dict.get(state.posts, post_id) {
     Error(_) -> Error(PostNotFound)
     Ok(post) -> {
@@ -801,6 +804,7 @@ fn upvote_post(
 
       case dict.get(state.users, post.author_id) {
         Ok(author) -> {
+          // io.println("karma+1")
           let updated_author = User(..author, karma: author.karma + 1)
           let updated_users =
             dict.insert(state.users, post.author_id, updated_author)
@@ -816,6 +820,7 @@ fn downvote_post(
   state: EngineState,
   post_id: PostId,
 ) -> Result(EngineState, Error) {
+  // io.println("downvote post")
   case dict.get(state.posts, post_id) {
     Error(_) -> Error(PostNotFound)
     Ok(post) -> {
@@ -824,6 +829,12 @@ fn downvote_post(
 
       case dict.get(state.users, post.author_id) {
         Ok(author) -> {
+          // io.println(
+          //   "Author ID: "
+          //   <> author.id
+          //   <> "-- karma: "
+          //   <> int.to_string(author.karma),
+          // )
           let updated_author = User(..author, karma: author.karma - 1)
           let updated_users =
             dict.insert(state.users, post.author_id, updated_author)
@@ -839,6 +850,7 @@ fn upvote_comment(
   state: EngineState,
   comment_id: CommentId,
 ) -> Result(EngineState, Error) {
+  // io.println("upvote comment")
   case dict.get(state.comments, comment_id) {
     Error(_) -> Error(CommentNotFound)
     Ok(comment) -> {
@@ -849,6 +861,7 @@ fn upvote_comment(
       case dict.get(state.users, comment.author_id) {
         Ok(author) -> {
           let updated_author = User(..author, karma: author.karma + 1)
+          io.println("Author Karma: " <> int.to_string(author.karma))
           let updated_users =
             dict.insert(state.users, comment.author_id, updated_author)
           Ok(
@@ -869,6 +882,7 @@ fn downvote_comment(
   state: EngineState,
   comment_id: CommentId,
 ) -> Result(EngineState, Error) {
+  // io.println("downvote comment")
   case dict.get(state.comments, comment_id) {
     Error(_) -> Error(CommentNotFound)
     Ok(comment) -> {
@@ -881,6 +895,7 @@ fn downvote_comment(
           let updated_author = User(..author, karma: author.karma - 1)
           let updated_users =
             dict.insert(state.users, comment.author_id, updated_author)
+          io.println("Author Karma: " <> int.to_string(author.karma))
           Ok(
             EngineState(
               ..state,
@@ -992,5 +1007,28 @@ fn reply_to_message(
         content,
         timestamp,
       )
+  }
+}
+
+fn calculate_karma(state: EngineState, user_id: UserId) -> Result(Int, Error) {
+  case get_user(state, user_id) {
+    Error(e) -> Error(e)
+    Ok(_user) -> {
+      // Calculate karma from posts
+      let post_karma =
+        dict.values(state.posts)
+        |> list.filter(fn(post) { post.author_id == user_id })
+        |> list.fold(0, fn(acc, post) { acc + post.upvotes - post.downvotes })
+
+      // Calculate karma from comments
+      let comment_karma =
+        dict.values(state.comments)
+        |> list.filter(fn(comment) { comment.author_id == user_id })
+        |> list.fold(0, fn(acc, comment) {
+          acc + comment.upvotes - comment.downvotes
+        })
+
+      Ok(post_karma + comment_karma)
+    }
   }
 }
