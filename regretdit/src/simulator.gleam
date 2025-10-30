@@ -1,25 +1,22 @@
 import regretdit.{
-  type EngineMessage, type SubredditId, type UserId, CreateComment, CreatePost,
-  CreateSubreddit, DownvotePost, GetAllSubreddits, GetUser, GetUserFeed,
-  GetUserMessages, JoinSubreddit, RegisterUser, SendMessage, Shutdown,
-  UpvotePost,
+  type EngineMessage, CreateComment, CreatePost, CreateSubregretdit,
+  DownvotePost, GetAllSubregretdits, GetUser, GetUserFeed, GetUserMessages,
+  JoinSubregretdit, RegisterUser, SendMessage, Shutdown, UpvotePost,
 }
 
-import gleam/dict.{type Dict}
+// import gleam/dict.{type Dict}
 import gleam/erlang/process.{type Subject}
 import gleam/float
 import gleam/int
 import gleam/io
 import gleam/list
 import gleam/option.{type Option, None, Some}
-import gleam/otp/actor
-import gleam/result
 import gleam/string
 
 pub type SimulatorConfig {
   SimulatorConfig(
     num_users: Int,
-    num_subreddits: Int,
+    num_subregretdits: Int,
     simulation_ticks: Int,
     zipf_exponent: Float,
   )
@@ -32,7 +29,7 @@ fn zipf_distribution(n: Int, exponent: Float) -> List(Float) {
     list.fold(ranks, 0.0, fn(acc, rank) {
       let rank_float = int.to_float(rank)
       let pow = float.power(rank_float, exponent)
-      let value = case pow {
+      let _value = case pow {
         Ok(res) -> acc +. { 1.0 /. res }
         _ -> 0.0
       }
@@ -49,33 +46,16 @@ fn zipf_distribution(n: Int, exponent: Float) -> List(Float) {
   })
 }
 
-// Simple pseudo-random number generator
-fn pseudo_random(seed: Int, max: Int) -> Int {
-  case max {
-    0 -> 0
-    _ -> {
-      let a = 1_103_515
-      let c = 1235
-      let m = 214_746
-      let result = { seed * a + c } % m
-      case result < 0 {
-        True -> { result + m } % max
-        False -> result % max
-      }
-    }
-  }
+fn random_float() -> Float {
+  int.to_float(int.random(10_000)) /. 10_000.0
 }
 
-fn random_float(seed: Int) -> Float {
-  int.to_float(pseudo_random(seed, 10_000)) /. 10_000.0
-}
-
-fn pick_random(lst: List(a), seed: Int) -> Option(a) {
+fn pick_random(lst: List(a)) -> Option(a) {
   let len = list.length(lst)
   case len {
     0 -> None
     _ -> {
-      let index = pseudo_random(seed, len)
+      let index = int.random(len)
       list.drop(lst, index) |> list.first |> option.from_result
     }
   }
@@ -95,7 +75,7 @@ fn generate_post_title(seed: Int) -> String {
     "PSA: Everyone needs to know this",
     "Shower thought: what if...",
   ]
-  case pick_random(titles, seed) {
+  case pick_random(titles) {
     Some(title) -> title
     None -> "Interesting post #" <> int.to_string(seed)
   }
@@ -112,7 +92,7 @@ fn generate_post_content(seed: Int) -> String {
     "Update: Thanks for all the feedback! Really appreciate this community.",
     "Edit: Wow, didn't expect this to blow up! Thanks for the upvotes!",
   ]
-  case pick_random(contents, seed) {
+  case pick_random(contents) {
     Some(content) -> content
     None -> "Post content " <> int.to_string(seed)
   }
@@ -129,7 +109,7 @@ fn generate_comment_content(seed: Int) -> String {
     "This needs to be higher up!",
     "ELI5 please?",
   ]
-  case pick_random(comments, seed) {
+  case pick_random(comments) {
     Some(comment) -> comment
     None -> "Comment " <> int.to_string(seed)
   }
@@ -149,8 +129,8 @@ pub fn run_simulation(engine: Subject(EngineMessage), config: SimulatorConfig) {
     "Starting simulation with "
     <> int.to_string(config.num_users)
     <> " users and "
-    <> int.to_string(config.num_subreddits)
-    <> " subreddits",
+    <> int.to_string(config.num_subregretdits)
+    <> " subregretdits",
   )
 
   // Step 1: Create users
@@ -175,33 +155,35 @@ pub fn run_simulation(engine: Subject(EngineMessage), config: SimulatorConfig) {
     "Successfully Created " <> int.to_string(list.length(user_ids)) <> " users",
   )
 
-  // Step 2: Create subreddits with diverse topics
-  io.println("\n[Phase 2] Creating subreddits...")
-  let subreddit_names = [
+  // Step 2: Create subregretdits with diverse topics
+  io.println("\n[Phase 2] Creating subregretdits...")
+  let subregretdit_names = [
     "GleamHateClub", "Gaming", "GleamAgainstDevs", "Dobra", "Agony", "Movies",
     "TractorFanClub", "Food", "Actors", "Fitness", "Art", "Project4", "Regret",
     "StackOverflow", "Funny", "Memes", "Cats", "SrikarMarioBros", "Sports",
     "DevsAgainstGleam",
   ]
 
-  let max_subs = case config.num_subreddits < list.length(subreddit_names) {
-    True -> config.num_subreddits
-    False -> list.length(subreddit_names)
+  let max_subs = case
+    config.num_subregretdits < list.length(subregretdit_names)
+  {
+    True -> config.num_subregretdits
+    False -> list.length(subregretdit_names)
   }
 
-  let subreddit_ids =
+  let subregretdit_ids =
     list.range(0, max_subs - 1)
     |> list.filter_map(fn(i) {
-      case pick_random(user_ids, i) {
+      case pick_random(user_ids) {
         Some(creator_id) -> {
-          let name = case list.drop(subreddit_names, i) |> list.first {
+          let name = case list.drop(subregretdit_names, i) |> list.first {
             Ok(n) -> n
             Error(_) -> "Community" <> int.to_string(i)
           }
           let reply = process.new_subject()
           process.send(
             engine,
-            CreateSubreddit(
+            CreateSubregretdit(
               creator_id,
               "r/" <> name,
               "A community for " <> name <> " enthusiasts",
@@ -218,18 +200,18 @@ pub fn run_simulation(engine: Subject(EngineMessage), config: SimulatorConfig) {
     })
   io.println(
     "Successfully Created "
-    <> int.to_string(list.length(subreddit_ids))
-    <> " subreddits",
+    <> int.to_string(list.length(subregretdit_ids))
+    <> " subregretdits",
   )
 
-  // Step 3: Apply Zipf distribution for subreddit membership
+  // Step 3: Apply Zipf distribution for subregretdit membership
   io.println(
-    "\n[Phase 3] Simulating Zipf distribution for subreddit popularity...",
+    "\n[Phase 3] Simulating Zipf distribution for subregretdit popularity...",
   )
   let zipf_values =
-    zipf_distribution(list.length(subreddit_ids), config.zipf_exponent)
+    zipf_distribution(list.length(subregretdit_ids), config.zipf_exponent)
 
-  list.index_map(subreddit_ids, fn(subreddit_id, idx) {
+  list.index_map(subregretdit_ids, fn(subregretdit_id, idx) {
     let popularity = case list.drop(zipf_values, idx) |> list.first {
       Ok(val) -> val
       Error(_) -> 0.01
@@ -240,11 +222,14 @@ pub fn run_simulation(engine: Subject(EngineMessage), config: SimulatorConfig) {
     // |> float.truncate
 
     list.range(0, num_members - 1)
-    |> list.each(fn(i) {
-      case pick_random(user_ids, idx * 1000 + i) {
+    |> list.each(fn(_i) {
+      case pick_random(user_ids) {
         Some(user_id) -> {
           let reply = process.new_subject()
-          process.send(engine, JoinSubreddit(user_id, subreddit_id, reply))
+          process.send(
+            engine,
+            JoinSubregretdit(user_id, subregretdit_id, reply),
+          )
           let _ = process.receive(reply, 1000)
           Nil
         }
@@ -255,7 +240,7 @@ pub fn run_simulation(engine: Subject(EngineMessage), config: SimulatorConfig) {
     case safe_modulo(idx, 5) {
       0 ->
         io.println(
-          "  Subreddit "
+          "  Subregretdit "
           <> int.to_string(idx + 1)
           <> " has "
           <> int.to_string(num_members)
@@ -265,23 +250,23 @@ pub fn run_simulation(engine: Subject(EngineMessage), config: SimulatorConfig) {
     }
   })
   io.println(
-    "Successfully Users joined subreddits according to Zipf distribution",
+    "Users joined subregretdits according to Zipf distribution successfully.",
   )
 
-  // Step 4: Get subreddit member counts for post generation
+  // Step 4: Get subregretdit member counts for post generation
   io.println(
-    "\n[Phase 4] Generating posts (more posts for popular subreddits)...",
+    "\n[Phase 4] Generating posts (more posts for popular subregretdits)...",
   )
   let reply = process.new_subject()
-  process.send(engine, GetAllSubreddits(reply))
-  let subreddits = case process.receive(reply, 1000) {
+  process.send(engine, GetAllSubregretdits(reply))
+  let subregretdits = case process.receive(reply, 1000) {
     Ok(subs) -> subs
     Error(_) -> []
   }
 
   let total_posts =
-    list.index_fold(subreddits, 0, fn(acc, subreddit, idx) {
-      let member_count = list.length(subreddit.members)
+    list.index_fold(subregretdits, 0, fn(acc, subregretdit, idx) {
+      let member_count = list.length(subregretdit.members)
       let num_posts = case member_count > 10 {
         True -> member_count / 10
         False -> 1
@@ -289,14 +274,14 @@ pub fn run_simulation(engine: Subject(EngineMessage), config: SimulatorConfig) {
 
       list.range(0, num_posts - 1)
       |> list.each(fn(post_idx) {
-        case pick_random(subreddit.members, idx * 10_000 + post_idx) {
+        case pick_random(subregretdit.members) {
           Some(author_id) -> {
             let seed = idx * 1000 + post_idx
             let title = generate_post_title(seed)
             let content = generate_post_content(seed)
 
             // Simulate reposts (10% chance)
-            let is_repost = pseudo_random(seed, 10) == 0
+            let is_repost = int.random(10) == 0
             let final_title = case is_repost {
               True -> "[REPOST] " <> title
               False -> title
@@ -307,7 +292,7 @@ pub fn run_simulation(engine: Subject(EngineMessage), config: SimulatorConfig) {
               engine,
               CreatePost(
                 author_id,
-                subreddit.id,
+                subregretdit.id,
                 final_title,
                 content,
                 seed,
@@ -333,15 +318,12 @@ pub fn run_simulation(engine: Subject(EngineMessage), config: SimulatorConfig) {
   |> list.each(fn(tick) {
     // Simulate online/offline cycles (60% online at any given time)
     let active_users =
-      list.filter(user_ids, fn(user_id) {
-        let seed = tick * 1000 + string.length(user_id)
-        random_float(seed) <. 0.6
-      })
+      list.filter(user_ids, fn(_user_id) { random_float() <. 0.6 })
 
     // Active users perform actions
     list.each(active_users, fn(user_id) {
       let seed = tick * 10_000 + string.length(user_id)
-      let action = pseudo_random(seed, 100)
+      let action = int.random(100)
 
       // 40% chance: vote on something
       case action < 40 {
@@ -350,10 +332,10 @@ pub fn run_simulation(engine: Subject(EngineMessage), config: SimulatorConfig) {
           process.send(engine, GetUserFeed(user_id, feed_reply))
           case process.receive(feed_reply, 1000) {
             Ok(Ok(posts)) ->
-              case pick_random(posts, seed) {
+              case pick_random(posts) {
                 Some(post) -> {
                   let vote_reply = process.new_subject()
-                  case pseudo_random(seed + 1, 2) {
+                  case int.random(2) {
                     0 -> process.send(engine, UpvotePost(post.id, vote_reply))
                     _ -> process.send(engine, DownvotePost(post.id, vote_reply))
                   }
@@ -375,7 +357,7 @@ pub fn run_simulation(engine: Subject(EngineMessage), config: SimulatorConfig) {
           process.send(engine, GetUserFeed(user_id, feed_reply))
           case process.receive(feed_reply, 1000) {
             Ok(Ok(posts)) ->
-              case pick_random(posts, seed) {
+              case pick_random(posts) {
                 Some(post) -> {
                   let comment_reply = process.new_subject()
                   let content = generate_comment_content(seed)
@@ -415,7 +397,7 @@ pub fn run_simulation(engine: Subject(EngineMessage), config: SimulatorConfig) {
       // 10% chance: send a direct message
       case action >= 90 {
         True ->
-          case pick_random(user_ids, seed) {
+          case pick_random(user_ids) {
             Some(recipient_id) -> {
               let msg_reply = process.new_subject()
               process.send(
@@ -437,7 +419,7 @@ pub fn run_simulation(engine: Subject(EngineMessage), config: SimulatorConfig) {
       }
     })
 
-    case safe_modulo(tick, 10) {
+    case safe_modulo(tick, 50) {
       0 ->
         io.println(
           "  Tick "
@@ -465,8 +447,8 @@ pub fn run_simulation(engine: Subject(EngineMessage), config: SimulatorConfig) {
             <> user.username
             <> "\n  Karma: "
             <> int.to_string(user.karma)
-            <> "\n  Joined Subreddits: "
-            <> int.to_string(list.length(user.joined_subreddits)),
+            <> "\n  Joined Subregretdits: "
+            <> int.to_string(list.length(user.joined_subregretdits)),
           )
         _ -> Nil
       }
@@ -484,8 +466,8 @@ pub fn main() {
       let config =
         SimulatorConfig(
           num_users: 500,
-          num_subreddits: 20,
-          simulation_ticks: 50,
+          num_subregretdits: 20,
+          simulation_ticks: 500,
           zipf_exponent: 1.5,
         )
 

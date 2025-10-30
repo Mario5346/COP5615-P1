@@ -1,8 +1,6 @@
 import gleam/dict.{type Dict}
 import gleam/erlang/process.{type Subject}
-import gleam/float
 import gleam/int
-import gleam/io
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/otp/actor
@@ -13,7 +11,7 @@ import gleam/string
 pub type UserId =
   String
 
-pub type SubredditId =
+pub type SubregretditId =
   String
 
 pub type PostId =
@@ -30,13 +28,13 @@ pub type User {
     id: UserId,
     username: String,
     karma: Int,
-    joined_subreddits: List(SubredditId),
+    joined_subregretdits: List(SubregretditId),
   )
 }
 
-pub type Subreddit {
-  Subreddit(
-    id: SubredditId,
+pub type Subregretdit {
+  Subregretdit(
+    id: SubregretditId,
     name: String,
     description: String,
     members: List(UserId),
@@ -48,7 +46,7 @@ pub type Post {
   Post(
     id: PostId,
     author_id: UserId,
-    subreddit_id: SubredditId,
+    subregretdit_id: SubregretditId,
     title: String,
     content: String,
     upvotes: Int,
@@ -86,7 +84,7 @@ pub type DirectMessage {
 pub type EngineState {
   EngineState(
     users: Dict(UserId, User),
-    subreddits: Dict(SubredditId, Subreddit),
+    subregretdits: Dict(SubregretditId, Subregretdit),
     posts: Dict(PostId, Post),
     comments: Dict(CommentId, Comment),
     messages: Dict(MessageId, DirectMessage),
@@ -96,7 +94,7 @@ pub type EngineState {
 
 pub type Error {
   UserNotFound
-  SubredditNotFound
+  SubregretditNotFound
   PostNotFound
   CommentNotFound
   MessageNotFound
@@ -110,25 +108,25 @@ pub type Error {
 
 pub type EngineMessage {
   RegisterUser(username: String, reply: Subject(Result(UserId, Error)))
-  CreateSubreddit(
+  CreateSubregretdit(
     creator_id: UserId,
     name: String,
     description: String,
-    reply: Subject(Result(SubredditId, Error)),
+    reply: Subject(Result(SubregretditId, Error)),
   )
-  JoinSubreddit(
+  JoinSubregretdit(
     user_id: UserId,
-    subreddit_id: SubredditId,
+    subregretdit_id: SubregretditId,
     reply: Subject(Result(Nil, Error)),
   )
-  LeaveSubreddit(
+  LeaveSubregretdit(
     user_id: UserId,
-    subreddit_id: SubredditId,
+    subregretdit_id: SubregretditId,
     reply: Subject(Result(Nil, Error)),
   )
   CreatePost(
     author_id: UserId,
-    subreddit_id: SubredditId,
+    subregretdit_id: SubregretditId,
     title: String,
     content: String,
     timestamp: Int,
@@ -166,11 +164,11 @@ pub type EngineMessage {
   )
   GetUser(user_id: UserId, reply: Subject(Result(User, Error)))
   GetPost(post_id: PostId, reply: Subject(Result(Post, Error)))
-  GetSubreddit(
-    subreddit_id: SubredditId,
-    reply: Subject(Result(Subreddit, Error)),
+  GetSubregretdit(
+    subregretdit_id: SubregretditId,
+    reply: Subject(Result(Subregretdit, Error)),
   )
-  GetAllSubreddits(reply: Subject(List(Subreddit)))
+  GetAllSubregretdits(reply: Subject(List(Subregretdit)))
   Shutdown
 }
 
@@ -195,11 +193,11 @@ fn handle_message(
       }
     }
 
-    CreateSubreddit(creator_id, name, description, reply) -> {
-      let result = create_subreddit(state, creator_id, name, description)
+    CreateSubregretdit(creator_id, name, description, reply) -> {
+      let result = create_subregretdit(state, creator_id, name, description)
       case result {
-        Ok(#(subreddit_id, new_state)) -> {
-          process.send(reply, Ok(subreddit_id))
+        Ok(#(subregretdit_id, new_state)) -> {
+          process.send(reply, Ok(subregretdit_id))
           actor.continue(new_state)
         }
         Error(e) -> {
@@ -209,22 +207,8 @@ fn handle_message(
       }
     }
 
-    JoinSubreddit(user_id, subreddit_id, reply) -> {
-      let result = join_subreddit(state, user_id, subreddit_id)
-      case result {
-        Ok(new_state) -> {
-          process.send(reply, Ok(Nil))
-          actor.continue(new_state)
-        }
-        Error(e) -> {
-          process.send(reply, Error(e))
-          actor.continue(state)
-        }
-      }
-    }
-
-    LeaveSubreddit(user_id, subreddit_id, reply) -> {
-      let result = leave_subreddit(state, user_id, subreddit_id)
+    JoinSubregretdit(user_id, subregretdit_id, reply) -> {
+      let result = join_subregretdit(state, user_id, subregretdit_id)
       case result {
         Ok(new_state) -> {
           process.send(reply, Ok(Nil))
@@ -237,9 +221,30 @@ fn handle_message(
       }
     }
 
-    CreatePost(author_id, subreddit_id, title, content, timestamp, reply) -> {
+    LeaveSubregretdit(user_id, subregretdit_id, reply) -> {
+      let result = leave_subregretdit(state, user_id, subregretdit_id)
+      case result {
+        Ok(new_state) -> {
+          process.send(reply, Ok(Nil))
+          actor.continue(new_state)
+        }
+        Error(e) -> {
+          process.send(reply, Error(e))
+          actor.continue(state)
+        }
+      }
+    }
+
+    CreatePost(author_id, subregretdit_id, title, content, timestamp, reply) -> {
       let result =
-        create_post(state, author_id, subreddit_id, title, content, timestamp)
+        create_post(
+          state,
+          author_id,
+          subregretdit_id,
+          title,
+          content,
+          timestamp,
+        )
       case result {
         Ok(#(post_id, new_state)) -> {
           process.send(reply, Ok(post_id))
@@ -390,15 +395,15 @@ fn handle_message(
       actor.continue(state)
     }
 
-    GetSubreddit(subreddit_id, reply) -> {
-      let result = get_subreddit(state, subreddit_id)
+    GetSubregretdit(subregretdit_id, reply) -> {
+      let result = get_subregretdit(state, subregretdit_id)
       process.send(reply, result)
       actor.continue(state)
     }
 
-    GetAllSubreddits(reply) -> {
-      let subreddits = dict.values(state.subreddits)
-      process.send(reply, subreddits)
+    GetAllSubregretdits(reply) -> {
+      let subregretdits = dict.values(state.subregretdits)
+      process.send(reply, subregretdits)
       actor.continue(state)
     }
 
@@ -410,7 +415,7 @@ pub fn start() {
   let initial_state =
     EngineState(
       users: dict.new(),
-      subreddits: dict.new(),
+      subregretdits: dict.new(),
       posts: dict.new(),
       comments: dict.new(),
       messages: dict.new(),
@@ -439,7 +444,12 @@ fn register_user(
     False -> {
       let #(user_id, new_state) = generate_id(state, "user_")
       let user =
-        User(id: user_id, username: username, karma: 0, joined_subreddits: [])
+        User(
+          id: user_id,
+          username: username,
+          karma: 0,
+          joined_subregretdits: [],
+        )
       let updated_users = dict.insert(new_state.users, user_id, user)
       Ok(#(user_id, EngineState(..new_state, users: updated_users)))
     }
@@ -453,54 +463,54 @@ fn get_user(state: EngineState, user_id: UserId) -> Result(User, Error) {
   }
 }
 
-fn get_subreddit(
+fn get_subregretdit(
   state: EngineState,
-  subreddit_id: SubredditId,
-) -> Result(Subreddit, Error) {
-  case dict.get(state.subreddits, subreddit_id) {
-    Ok(subreddit) -> Ok(subreddit)
-    Error(_) -> Error(SubredditNotFound)
+  subregretdit_id: SubregretditId,
+) -> Result(Subregretdit, Error) {
+  case dict.get(state.subregretdits, subregretdit_id) {
+    Ok(subregretdit) -> Ok(subregretdit)
+    Error(_) -> Error(SubregretditNotFound)
   }
 }
 
-fn create_subreddit(
+fn create_subregretdit(
   state: EngineState,
   creator_id: UserId,
   name: String,
   description: String,
-) -> Result(#(SubredditId, EngineState), Error) {
+) -> Result(#(SubregretditId, EngineState), Error) {
   case get_user(state, creator_id) {
     Error(e) -> Error(e)
     Ok(_) ->
       case string.is_empty(name) {
         True -> Error(InvalidInput)
         False -> {
-          let #(subreddit_id, new_state) = generate_id(state, "sub_")
-          let subreddit =
-            Subreddit(
-              id: subreddit_id,
+          let #(subregretdit_id, new_state) = generate_id(state, "sub_")
+          let subregretdit =
+            Subregretdit(
+              id: subregretdit_id,
               name: name,
               description: description,
               members: [creator_id],
               posts: [],
             )
-          let updated_subreddits =
-            dict.insert(new_state.subreddits, subreddit_id, subreddit)
+          let updated_subregretdits =
+            dict.insert(new_state.subregretdits, subregretdit_id, subregretdit)
 
           case dict.get(new_state.users, creator_id) {
             Ok(user) -> {
               let updated_user =
-                User(..user, joined_subreddits: [
-                  subreddit_id,
-                  ..user.joined_subreddits
+                User(..user, joined_subregretdits: [
+                  subregretdit_id,
+                  ..user.joined_subregretdits
                 ])
               let updated_users =
                 dict.insert(new_state.users, creator_id, updated_user)
               Ok(#(
-                subreddit_id,
+                subregretdit_id,
                 EngineState(
                   ..new_state,
-                  subreddits: updated_subreddits,
+                  subregretdits: updated_subregretdits,
                   users: updated_users,
                 ),
               ))
@@ -512,29 +522,36 @@ fn create_subreddit(
   }
 }
 
-fn join_subreddit(
+fn join_subregretdit(
   state: EngineState,
   user_id: UserId,
-  subreddit_id: SubredditId,
+  subregretdit_id: SubregretditId,
 ) -> Result(EngineState, Error) {
   case get_user(state, user_id) {
     Error(e) -> Error(e)
     Ok(user) ->
-      case dict.get(state.subreddits, subreddit_id) {
-        Error(_) -> Error(SubredditNotFound)
-        Ok(subreddit) ->
-          case list.contains(subreddit.members, user_id) {
+      case dict.get(state.subregretdits, subregretdit_id) {
+        Error(_) -> Error(SubregretditNotFound)
+        Ok(subregretdit) ->
+          case list.contains(subregretdit.members, user_id) {
             True -> Error(AlreadyJoined)
             False -> {
-              let updated_subreddit =
-                Subreddit(..subreddit, members: [user_id, ..subreddit.members])
-              let updated_subreddits =
-                dict.insert(state.subreddits, subreddit_id, updated_subreddit)
+              let updated_subregretdit =
+                Subregretdit(..subregretdit, members: [
+                  user_id,
+                  ..subregretdit.members
+                ])
+              let updated_subregretdits =
+                dict.insert(
+                  state.subregretdits,
+                  subregretdit_id,
+                  updated_subregretdit,
+                )
 
               let updated_user =
-                User(..user, joined_subreddits: [
-                  subreddit_id,
-                  ..user.joined_subreddits
+                User(..user, joined_subregretdits: [
+                  subregretdit_id,
+                  ..user.joined_subregretdits
                 ])
               let updated_users =
                 dict.insert(state.users, user_id, updated_user)
@@ -542,7 +559,7 @@ fn join_subreddit(
               Ok(
                 EngineState(
                   ..state,
-                  subreddits: updated_subreddits,
+                  subregretdits: updated_subregretdits,
                   users: updated_users,
                 ),
               )
@@ -552,36 +569,41 @@ fn join_subreddit(
   }
 }
 
-fn leave_subreddit(
+fn leave_subregretdit(
   state: EngineState,
   user_id: UserId,
-  subreddit_id: SubredditId,
+  subregretdit_id: SubregretditId,
 ) -> Result(EngineState, Error) {
   case get_user(state, user_id) {
     Error(e) -> Error(e)
     Ok(user) ->
-      case dict.get(state.subreddits, subreddit_id) {
-        Error(_) -> Error(SubredditNotFound)
-        Ok(subreddit) ->
-          case list.contains(subreddit.members, user_id) {
+      case dict.get(state.subregretdits, subregretdit_id) {
+        Error(_) -> Error(SubregretditNotFound)
+        Ok(subregretdit) ->
+          case list.contains(subregretdit.members, user_id) {
             False -> Error(NotAMember)
             True -> {
-              let updated_subreddit =
-                Subreddit(
-                  ..subreddit,
-                  members: list.filter(subreddit.members, fn(id) {
+              let updated_subregretdit =
+                Subregretdit(
+                  ..subregretdit,
+                  members: list.filter(subregretdit.members, fn(id) {
                     id != user_id
                   }),
                 )
-              let updated_subreddits =
-                dict.insert(state.subreddits, subreddit_id, updated_subreddit)
+              let updated_subregretdits =
+                dict.insert(
+                  state.subregretdits,
+                  subregretdit_id,
+                  updated_subregretdit,
+                )
 
               let updated_user =
                 User(
                   ..user,
-                  joined_subreddits: list.filter(user.joined_subreddits, fn(id) {
-                    id != subreddit_id
-                  }),
+                  joined_subregretdits: list.filter(
+                    user.joined_subregretdits,
+                    fn(id) { id != subregretdit_id },
+                  ),
                 )
               let updated_users =
                 dict.insert(state.users, user_id, updated_user)
@@ -589,7 +611,7 @@ fn leave_subreddit(
               Ok(
                 EngineState(
                   ..state,
-                  subreddits: updated_subreddits,
+                  subregretdits: updated_subregretdits,
                   users: updated_users,
                 ),
               )
@@ -602,7 +624,7 @@ fn leave_subreddit(
 fn create_post(
   state: EngineState,
   author_id: UserId,
-  subreddit_id: SubredditId,
+  subregretdit_id: SubregretditId,
   title: String,
   content: String,
   timestamp: Int,
@@ -610,10 +632,10 @@ fn create_post(
   case get_user(state, author_id) {
     Error(e) -> Error(e)
     Ok(_user) ->
-      case dict.get(state.subreddits, subreddit_id) {
-        Error(_) -> Error(SubredditNotFound)
-        Ok(subreddit) ->
-          case list.contains(subreddit.members, author_id) {
+      case dict.get(state.subregretdits, subregretdit_id) {
+        Error(_) -> Error(SubregretditNotFound)
+        Ok(subregretdit) ->
+          case list.contains(subregretdit.members, author_id) {
             False -> Error(NotAMember)
             True ->
               case string.is_empty(title) {
@@ -624,7 +646,7 @@ fn create_post(
                     Post(
                       id: post_id,
                       author_id: author_id,
-                      subreddit_id: subreddit_id,
+                      subregretdit_id: subregretdit_id,
                       title: title,
                       content: content,
                       upvotes: 0,
@@ -635,13 +657,16 @@ fn create_post(
                   let updated_posts =
                     dict.insert(new_state.posts, post_id, post)
 
-                  let updated_subreddit =
-                    Subreddit(..subreddit, posts: [post_id, ..subreddit.posts])
-                  let updated_subreddits =
+                  let updated_subregretdit =
+                    Subregretdit(..subregretdit, posts: [
+                      post_id,
+                      ..subregretdit.posts
+                    ])
+                  let updated_subregretdits =
                     dict.insert(
-                      new_state.subreddits,
-                      subreddit_id,
-                      updated_subreddit,
+                      new_state.subregretdits,
+                      subregretdit_id,
+                      updated_subregretdit,
                     )
 
                   Ok(#(
@@ -649,7 +674,7 @@ fn create_post(
                     EngineState(
                       ..new_state,
                       posts: updated_posts,
-                      subreddits: updated_subreddits,
+                      subregretdits: updated_subregretdits,
                     ),
                   ))
                 }
@@ -878,10 +903,10 @@ fn get_user_feed(
     Error(e) -> Error(e)
     Ok(user) -> {
       let posts =
-        list.flat_map(user.joined_subreddits, fn(subreddit_id) {
-          case dict.get(state.subreddits, subreddit_id) {
-            Ok(subreddit) ->
-              list.filter_map(subreddit.posts, fn(post_id) {
+        list.flat_map(user.joined_subregretdits, fn(subregretdit_id) {
+          case dict.get(state.subregretdits, subregretdit_id) {
+            Ok(subregretdit) ->
+              list.filter_map(subregretdit.posts, fn(post_id) {
                 dict.get(state.posts, post_id)
               })
             Error(_) -> []
