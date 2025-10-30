@@ -1,4 +1,4 @@
-import sample2.{
+import regretdit.{
   type EngineMessage, type SubredditId, type UserId, CreateComment, CreatePost,
   CreateSubreddit, DownvotePost, GetAllSubreddits, GetUser, GetUserFeed,
   GetUserMessages, JoinSubreddit, RegisterUser, SendMessage, Shutdown,
@@ -479,7 +479,7 @@ pub fn run_simulation(engine: Subject(EngineMessage), config: SimulatorConfig) {
 
 // Example usage function
 pub fn main() {
-  case sample2.start() {
+  case regretdit.start() {
     Ok(engine) -> {
       let config =
         SimulatorConfig(
