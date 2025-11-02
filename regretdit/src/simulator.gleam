@@ -1,7 +1,7 @@
 import regretdit.{
   type EngineMessage, CreateComment, CreatePost, CreateSubregretdit,
-  DownvoteComment, DownvotePost, GetAllSubregretdits, GetUser, GetUserFeed,
-  GetUserMessages, JoinSubregretdit, RegisterUser, SendMessage, Shutdown,
+  DownvoteComment, DownvotePost, GetAllSubregretdits, GetStats, GetUser,
+  GetUserFeed, JoinSubregretdit, RegisterUser, SendMessage, Shutdown,
   UpvoteComment, UpvotePost,
 }
 
@@ -135,7 +135,7 @@ pub fn run_simulation(engine: Subject(EngineMessage), config: SimulatorConfig) {
   )
 
   // Step 1: Create users
-  io.println("\n[Phase 1] Creating users...")
+  io.println("\n[Phase 1] Creating users: ")
   let user_ids =
     list.range(1, config.num_users)
     |> list.filter_map(fn(i) {
@@ -207,7 +207,7 @@ pub fn run_simulation(engine: Subject(EngineMessage), config: SimulatorConfig) {
 
   // Step 3: Apply Zipf distribution for subregretdit membership
   io.println(
-    "\n[Phase 3] Simulating Zipf distribution for subregretdit popularity...",
+    "\n[Phase 3] Simulating Zipf distribution for subregretdit popularity: ",
   )
   let zipf_values =
     zipf_distribution(list.length(subregretdit_ids), config.zipf_exponent)
@@ -255,9 +255,7 @@ pub fn run_simulation(engine: Subject(EngineMessage), config: SimulatorConfig) {
   )
 
   // Step 4: Get subregretdit member counts for post generation
-  io.println(
-    "\n[Phase 4] Generating posts (more posts for popular subregretdits)...",
-  )
+  io.println("\n[Phase 4] Generating posts (more posts for popular subs): ")
   let reply = process.new_subject()
   process.send(engine, GetAllSubregretdits(reply))
   let subregretdits = case process.receive(reply, 1000) {
@@ -310,11 +308,11 @@ pub fn run_simulation(engine: Subject(EngineMessage), config: SimulatorConfig) {
       acc + num_posts
     })
   io.println(
-    "Successfully Generated " <> int.to_string(total_posts) <> " posts",
+    "Successfully Generated " <> int.to_string(total_posts) <> " starting posts",
   )
 
   // Step 5: Simulate user activity over time
-  io.println("\n[Phase 5] Simulating user activity cycles...")
+  io.println("\n[Phase 5] Simulating user activity: ")
   list.range(0, config.simulation_ticks - 1)
   |> list.each(fn(tick) {
     // Simulate online/offline cycles (60% online at any given time)
@@ -337,8 +335,14 @@ pub fn run_simulation(engine: Subject(EngineMessage), config: SimulatorConfig) {
                 Some(post) -> {
                   let vote_reply = process.new_subject()
                   case int.random(3) {
-                    0 -> process.send(engine, DownvotePost(post.id, vote_reply))
-                    _ -> process.send(engine, UpvotePost(post.id, vote_reply))
+                    0 -> {
+                      // io.println("downvoting post")
+                      process.send(engine, DownvotePost(post.id, vote_reply))
+                    }
+                    _ -> {
+                      // io.println("upvoting post")
+                      process.send(engine, UpvotePost(post.id, vote_reply))
+                    }
                   }
                   let _ = process.receive(vote_reply, 1000)
                   case pick_random(post.comments) {
@@ -405,19 +409,71 @@ pub fn run_simulation(engine: Subject(EngineMessage), config: SimulatorConfig) {
         False -> Nil
       }
 
-      // 20% chance: read messages
-      case action >= 70 && action < 90 {
+      // // 20% chance: read messages
+      // case action >= 70 && action < 90 {
+      //   True -> {
+      //     let msg_reply = process.new_subject()
+      //     process.send(engine, GetUserMessages(user_id, msg_reply))
+      //     let _ = process.receive(msg_reply, 1000)
+      //     Nil
+      //   }
+      //   False -> Nil
+      // }
+
+      // 10% chance: create a new post
+      case action >= 70 && action < 80 {
         True -> {
-          let msg_reply = process.new_subject()
-          process.send(engine, GetUserMessages(user_id, msg_reply))
-          let _ = process.receive(msg_reply, 1000)
-          Nil
+          let user_reply = process.new_subject()
+          process.send(engine, GetUser(user_id, user_reply))
+          case process.receive(user_reply, 1000) {
+            Ok(Ok(user)) ->
+              case pick_random(user.joined_subregretdits) {
+                Some(sub_id) -> {
+                  let title = generate_post_title(seed)
+                  let content = generate_post_content(seed)
+                  let post_reply = process.new_subject()
+                  process.send(
+                    engine,
+                    CreatePost(
+                      user_id,
+                      sub_id,
+                      title,
+                      content,
+                      tick,
+                      post_reply,
+                    ),
+                  )
+                  let _ = process.receive(post_reply, 1000)
+                  Nil
+                }
+                None -> Nil
+              }
+            _ -> Nil
+          }
         }
         False -> Nil
       }
 
-      // 10% chance: send a direct message
-      case action >= 90 {
+      // 2% chance: join another subregretdit
+      case action >= 80 && action < 82 {
+        True ->
+          case pick_random(subregretdit_ids) {
+            Some(sub_id) -> {
+              let join_reply = process.new_subject()
+              process.send(
+                engine,
+                JoinSubregretdit(user_id, sub_id, join_reply),
+              )
+              let _ = process.receive(join_reply, 1000)
+              Nil
+            }
+            None -> Nil
+          }
+        False -> Nil
+      }
+
+      // 18% chance: send a direct message
+      case action >= 82 {
         True ->
           case pick_random(user_ids) {
             Some(recipient_id) -> {
@@ -441,7 +497,7 @@ pub fn run_simulation(engine: Subject(EngineMessage), config: SimulatorConfig) {
       }
     })
 
-    case safe_modulo(tick, 50) {
+    case safe_modulo(tick, 10) {
       0 ->
         io.println(
           "  Tick "
@@ -455,25 +511,46 @@ pub fn run_simulation(engine: Subject(EngineMessage), config: SimulatorConfig) {
   })
 
   // Step 6: Print final statistics
-  io.println("\n[Phase 6] Collecting final statistics...")
+  io.println("\n[Phase 6] Collecting final statistics: ")
 
   // Get sample user stats
   case list.first(user_ids) {
-    Ok(sample_user_id) -> {
+    Ok(_sample_user_id) -> {
       let user_reply = process.new_subject()
+      let stats_reply = process.new_subject()
       // process.send(engine, GetUser(sample_user_id, user_reply))
       process.sleep(1000)
       process.send(engine, GetUser("user_400", user_reply))
+      process.send(engine, GetStats(stats_reply))
       case process.receive(user_reply, 10_000) {
         Ok(Ok(user)) -> {
-          echo user
           io.println(
-            "\nSample User Stats:\n  Username: "
+            "\n--Sample User Stats:\n  Username: "
             <> user.username
             <> "\n  Karma: "
             <> int.to_string(user.karma)
             <> "\n  Joined Subregretdits: "
             <> int.to_string(list.length(user.joined_subregretdits)),
+          )
+        }
+        _ -> Nil
+      }
+      case process.receive(stats_reply, 10_000) {
+        Ok(stats) -> {
+          // echo stats
+          io.println(
+            "\n--Stats Snapshot:\n  Total Posts: "
+            <> int.to_string(stats.posts)
+            <> "\n  Total Comments: "
+            <> int.to_string(stats.comments)
+            <> "\n  Total Upvotes: "
+            <> int.to_string(stats.upvotes)
+            <> "\n  Total Downvotes: "
+            <> int.to_string(stats.downvotes)
+            <> "\n  Total Subs Joined: "
+            <> int.to_string(stats.subs_joined)
+            <> "\n  Total Dms Sent: "
+            <> int.to_string(stats.dms),
           )
         }
         _ -> Nil
@@ -493,7 +570,7 @@ pub fn main() {
         SimulatorConfig(
           num_users: 500,
           num_subregretdits: 20,
-          simulation_ticks: 250,
+          simulation_ticks: 50,
           zipf_exponent: 1.5,
         )
 

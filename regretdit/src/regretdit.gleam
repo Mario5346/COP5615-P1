@@ -1,11 +1,12 @@
 import gleam/dict.{type Dict}
 import gleam/erlang/process.{type Subject}
 import gleam/int
-import gleam/io
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/otp/actor
 import gleam/string
+
+// import gleam/io
 
 // ========== Types ==========
 
@@ -23,6 +24,17 @@ pub type CommentId =
 
 pub type MessageId =
   String
+
+pub type Stats {
+  Stats(
+    posts: Int,
+    comments: Int,
+    upvotes: Int,
+    downvotes: Int,
+    dms: Int,
+    subs_joined: Int,
+  )
+}
 
 pub type User {
   User(
@@ -90,6 +102,7 @@ pub type EngineState {
     comments: Dict(CommentId, Comment),
     messages: Dict(MessageId, DirectMessage),
     next_id: Int,
+    stats: Stats,
   )
 }
 
@@ -170,6 +183,7 @@ pub type EngineMessage {
     reply: Subject(Result(Subregretdit, Error)),
   )
   GetAllSubregretdits(reply: Subject(List(Subregretdit)))
+  GetStats(reply: Subject(Stats))
   Shutdown
 }
 
@@ -181,9 +195,11 @@ fn handle_message(
 ) -> actor.Next(EngineState, EngineMessage) {
   case message {
     RegisterUser(username, reply) -> {
+      // io.println("Registering user: " <> username)
       let result = register_user(state, username)
       case result {
         Ok(#(user_id, new_state)) -> {
+          // print_users(new_state)
           process.send(reply, Ok(user_id))
           actor.continue(new_state)
         }
@@ -198,6 +214,8 @@ fn handle_message(
       let result = create_subregretdit(state, creator_id, name, description)
       case result {
         Ok(#(subregretdit_id, new_state)) -> {
+          // io.println("Created subregretdit: " <> name)
+          // print_subregretdits(new_state)
           process.send(reply, Ok(subregretdit_id))
           actor.continue(new_state)
         }
@@ -409,6 +427,11 @@ fn handle_message(
       actor.continue(state)
     }
 
+    GetStats(reply) -> {
+      process.send(reply, state.stats)
+      actor.continue(state)
+    }
+
     Shutdown -> actor.stop()
   }
 }
@@ -422,6 +445,14 @@ pub fn start() {
       comments: dict.new(),
       messages: dict.new(),
       next_id: 1,
+      stats: Stats(
+        posts: 0,
+        comments: 0,
+        upvotes: 0,
+        downvotes: 0,
+        dms: 0,
+        subs_joined: 0,
+      ),
     )
   actor.new(initial_state)
   |> actor.on_message(handle_message)
@@ -444,6 +475,7 @@ fn register_user(
   case string.is_empty(username) {
     True -> Error(InvalidInput)
     False -> {
+      // user IDs are generated as "user_1", "user_2", etc.
       let #(user_id, new_state) = generate_id(state, "user_")
       let user =
         User(
@@ -452,6 +484,7 @@ fn register_user(
           karma: 0,
           joined_subregretdits: [],
         )
+      // update users dict and return new state
       let updated_users = dict.insert(new_state.users, user_id, user)
       Ok(#(user_id, EngineState(..new_state, users: updated_users)))
     }
@@ -557,12 +590,19 @@ fn join_subregretdit(
                 ])
               let updated_users =
                 dict.insert(state.users, user_id, updated_user)
-
               Ok(
                 EngineState(
                   ..state,
                   subregretdits: updated_subregretdits,
                   users: updated_users,
+                  stats: Stats(
+                    posts: state.stats.posts,
+                    comments: state.stats.comments,
+                    upvotes: state.stats.upvotes,
+                    downvotes: state.stats.downvotes,
+                    dms: state.stats.dms,
+                    subs_joined: state.stats.subs_joined + 1,
+                  ),
                 ),
               )
             }
@@ -677,6 +717,7 @@ fn create_post(
                       ..new_state,
                       posts: updated_posts,
                       subregretdits: updated_subregretdits,
+                      stats: Stats(..state.stats, posts: state.stats.posts + 1),
                     ),
                   ))
                 }
@@ -787,7 +828,12 @@ fn create_comment_internal(
 
   Ok(#(
     comment_id,
-    EngineState(..new_state, comments: final_comments, posts: updated_posts),
+    EngineState(
+      ..new_state,
+      comments: final_comments,
+      posts: updated_posts,
+      stats: Stats(..state.stats, comments: state.stats.comments + 1),
+    ),
   ))
 }
 
@@ -808,7 +854,14 @@ fn upvote_post(
           let updated_author = User(..author, karma: author.karma + 1)
           let updated_users =
             dict.insert(state.users, post.author_id, updated_author)
-          Ok(EngineState(..state, posts: updated_posts, users: updated_users))
+          Ok(
+            EngineState(
+              ..state,
+              posts: updated_posts,
+              users: updated_users,
+              stats: Stats(..state.stats, upvotes: state.stats.upvotes + 1),
+            ),
+          )
         }
         Error(_) -> Ok(EngineState(..state, posts: updated_posts))
       }
@@ -838,7 +891,14 @@ fn downvote_post(
           let updated_author = User(..author, karma: author.karma - 1)
           let updated_users =
             dict.insert(state.users, post.author_id, updated_author)
-          Ok(EngineState(..state, posts: updated_posts, users: updated_users))
+          Ok(
+            EngineState(
+              ..state,
+              posts: updated_posts,
+              users: updated_users,
+              stats: Stats(..state.stats, downvotes: state.stats.downvotes + 1),
+            ),
+          )
         }
         Error(_) -> Ok(EngineState(..state, posts: updated_posts))
       }
@@ -861,7 +921,7 @@ fn upvote_comment(
       case dict.get(state.users, comment.author_id) {
         Ok(author) -> {
           let updated_author = User(..author, karma: author.karma + 1)
-          io.println("Author Karma: " <> int.to_string(author.karma))
+          // io.println("Author Karma: " <> int.to_string(author.karma))
           let updated_users =
             dict.insert(state.users, comment.author_id, updated_author)
           Ok(
@@ -872,7 +932,14 @@ fn upvote_comment(
             ),
           )
         }
-        Error(_) -> Ok(EngineState(..state, comments: updated_comments))
+        Error(_) ->
+          Ok(
+            EngineState(
+              ..state,
+              comments: updated_comments,
+              stats: Stats(..state.stats, upvotes: state.stats.upvotes + 1),
+            ),
+          )
       }
     }
   }
@@ -895,7 +962,7 @@ fn downvote_comment(
           let updated_author = User(..author, karma: author.karma - 1)
           let updated_users =
             dict.insert(state.users, comment.author_id, updated_author)
-          io.println("Author Karma: " <> int.to_string(author.karma))
+          // io.println("Author Karma: " <> int.to_string(author.karma))
           Ok(
             EngineState(
               ..state,
@@ -904,7 +971,14 @@ fn downvote_comment(
             ),
           )
         }
-        Error(_) -> Ok(EngineState(..state, comments: updated_comments))
+        Error(_) ->
+          Ok(
+            EngineState(
+              ..state,
+              comments: updated_comments,
+              stats: Stats(..state.stats, downvotes: state.stats.downvotes + 1),
+            ),
+          )
       }
     }
   }
@@ -966,7 +1040,11 @@ fn send_message(
                 dict.insert(new_state.messages, message_id, message)
               Ok(#(
                 message_id,
-                EngineState(..new_state, messages: updated_messages),
+                EngineState(
+                  ..new_state,
+                  messages: updated_messages,
+                  stats: Stats(..state.stats, dms: state.stats.dms + 1),
+                ),
               ))
             }
           }
@@ -1009,26 +1087,55 @@ fn reply_to_message(
       )
   }
 }
+// fn calculate_karma(state: EngineState, user_id: UserId) -> Result(Int, Error) {
+//   case get_user(state, user_id) {
+//     Error(e) -> Error(e)
+//     Ok(_user) -> {
+//       // Calculate karma from posts
+//       let post_karma =
+//         dict.values(state.posts)
+//         |> list.filter(fn(post) { post.author_id == user_id })
+//         |> list.fold(0, fn(acc, post) { acc + post.upvotes - post.downvotes })
 
-fn calculate_karma(state: EngineState, user_id: UserId) -> Result(Int, Error) {
-  case get_user(state, user_id) {
-    Error(e) -> Error(e)
-    Ok(_user) -> {
-      // Calculate karma from posts
-      let post_karma =
-        dict.values(state.posts)
-        |> list.filter(fn(post) { post.author_id == user_id })
-        |> list.fold(0, fn(acc, post) { acc + post.upvotes - post.downvotes })
+//       // Calculate karma from comments
+//       let comment_karma =
+//         dict.values(state.comments)
+//         |> list.filter(fn(comment) { comment.author_id == user_id })
+//         |> list.fold(0, fn(acc, comment) {
+//           acc + comment.upvotes - comment.downvotes
+//         })
 
-      // Calculate karma from comments
-      let comment_karma =
-        dict.values(state.comments)
-        |> list.filter(fn(comment) { comment.author_id == user_id })
-        |> list.fold(0, fn(acc, comment) {
-          acc + comment.upvotes - comment.downvotes
-        })
+//       Ok(post_karma + comment_karma)
+//     }
+//   }
+// }
 
-      Ok(post_karma + comment_karma)
-    }
-  }
-}
+// fn print_users(state: EngineState) {
+//   let users = dict.values(state.users)
+//   list.each(users, fn(user) {
+//     io.println(
+//       "User ID: "
+//       <> user.id
+//       <> ", Username: "
+//       <> user.username
+//       <> ", Karma: "
+//       <> int.to_string(user.karma),
+//     )
+//   })
+// }
+
+// fn print_subregretdits(state: EngineState) {
+//   let subregretdits = dict.values(state.subregretdits)
+//   list.each(subregretdits, fn(sub) {
+//     io.println(
+//       "Subregretdit ID: "
+//       <> sub.id
+//       <> ", Name: "
+//       <> sub.name
+//       <> ", Members: "
+//       <> int.to_string(list.length(sub.members))
+//       <> ", Posts: "
+//       <> int.to_string(list.length(sub.posts)),
+//     )
+//   })
+// }
