@@ -539,210 +539,215 @@ pub fn get_stats(client: Client) -> Result(String, String) {
 // ========== Demo Functions ==========
 
 fn print_separator() {
-  io.println("\n" <> string.repeat("=", 60))
+  io.println("\n" <> string.repeat("=", 90) <> "\n")
 }
 
 pub fn run_demo(base_url: String) {
   let client = new(base_url)
 
-  io.println("\n🎭 REGRETDIT CLI CLIENT DEMO")
+  io.println("\n-----|| REGRETDIT CLI CLIENT DEMO ||-----")
   io.println("Demonstrating all API functionality with multiple clients")
 
   // ========== PHASE 1: User Registration ==========
   print_separator()
-  io.println("📝 PHASE 1: Registering Users")
+  io.println("------- PHASE 1: Registering Users -------")
   print_separator()
 
-  io.println("\n[Client 1] Registering user 'alice'...")
-  let alice_id = case register_user(client, "alice") {
+  io.println("\n[-Client 1-] Registering user 'Client-1'...")
+  let client1_id = case register_user(client, "Client-1") {
     Ok(id) -> {
-      io.println("✅ Registered alice with ID: " <> id)
+      io.println("[-OK-] Registered Client-1 with ID: " <> id)
       id
     }
     Error(e) -> {
-      io.println("❌ Failed: " <> e)
+      io.println("[-X-] Failed: " <> e)
       ""
     }
   }
 
-  io.println("\n[Client 2] Registering user 'bob'...")
-  let bob_id = case register_user(client, "bob") {
+  io.println("\n[-Client 2-] Registering user 'Client-2'...")
+  let client2_id = case register_user(client, "Client-2") {
     Ok(id) -> {
-      io.println("✅ Registered bob with ID: " <> id)
+      io.println("[-OK-] Registered Client-2 with ID: " <> id)
       id
     }
     Error(e) -> {
-      io.println("❌ Failed: " <> e)
+      io.println("[-X-] Failed: " <> e)
       ""
     }
   }
 
-  io.println("\n[Client 3] Registering user 'charlie'...")
-  let charlie_id = case register_user(client, "charlie") {
+  io.println("\n[-Client 3-] Registering user 'Client-3'...")
+  let charlie_id = case register_user(client, "Client-3") {
     Ok(id) -> {
-      io.println("✅ Registered charlie with ID: " <> id)
+      io.println("[-OK-] Registered Client-3 with ID: " <> id)
       id
     }
     Error(e) -> {
-      io.println("❌ Failed: " <> e)
+      io.println("[-X-] Failed: " <> e)
       ""
     }
   }
 
   // ========== PHASE 2: Creating Communities ==========
   print_separator()
-  io.println("🏘️  PHASE 2: Creating Subregretdits")
+  io.println("------- PHASE 2: Creating Subregretdits -------")
   print_separator()
 
-  io.println("\n[Alice's Client] Creating r/gleam...")
+  io.println("\n[-Client-1-] Creating r/gleam...")
   let gleam_sub = case
     create_subregretdit(
       client,
-      alice_id,
+      client1_id,
       "r/gleam",
       "A community for Gleam enthusiasts",
     )
   {
     Ok(id) -> {
-      io.println("✅ Created r/gleam with ID: " <> id)
+      io.println("[-OK-] Created r/gleam with ID: " <> id)
       id
     }
     Error(e) -> {
-      io.println("❌ Failed: " <> e)
+      io.println("[-X-] Failed: " <> e)
       ""
     }
   }
 
-  io.println("\n[Bob's Client] Creating r/programming...")
+  io.println("\n[-Client-2-] Creating r/programming...")
   let prog_sub = case
     create_subregretdit(
       client,
-      bob_id,
+      client2_id,
       "r/programming",
       "General programming discussions",
     )
   {
     Ok(id) -> {
-      io.println("✅ Created r/programming with ID: " <> id)
+      io.println("[-OK-] Created r/programming with ID: " <> id)
       id
     }
     Error(e) -> {
-      io.println("❌ Failed: " <> e)
+      io.println("[-X-] Failed: " <> e)
       ""
     }
   }
 
   // ========== PHASE 3: Joining Communities ==========
   print_separator()
-  io.println("🤝 PHASE 3: Users Joining Subregretdits")
+  io.println("------- PHASE 3: Users Joining Subregretdits -------")
   print_separator()
 
-  io.println("\n[Bob's Client] Joining r/gleam...")
-  case join_subregretdit(client, bob_id, gleam_sub) {
-    Ok(_) -> io.println("✅ Bob joined r/gleam")
-    Error(e) -> io.println("❌ Failed: " <> e)
+  io.println("\n[-Client-2-] Joining r/gleam...")
+  case join_subregretdit(client, client2_id, gleam_sub) {
+    Ok(_) -> io.println("[-OK-] Client-2 joined r/gleam")
+    Error(e) -> io.println("[-X-] Failed: " <> e)
   }
 
-  io.println("\n[Charlie's Client] Joining r/gleam...")
+  io.println("\n[-Client-3-] Joining r/gleam...")
   case join_subregretdit(client, charlie_id, gleam_sub) {
-    Ok(_) -> io.println("✅ Charlie joined r/gleam")
-    Error(e) -> io.println("❌ Failed: " <> e)
+    Ok(_) -> io.println("[-OK-] Client-3 joined r/gleam")
+    Error(e) -> io.println("[-X-] Failed: " <> e)
   }
 
-  io.println("\n[Alice's Client] Joining r/programming...")
-  case join_subregretdit(client, alice_id, prog_sub) {
-    Ok(_) -> io.println("✅ Alice joined r/programming")
-    Error(e) -> io.println("❌ Failed: " <> e)
+  io.println("\n[-Client-1-] Joining r/programming...")
+  case join_subregretdit(client, client1_id, prog_sub) {
+    Ok(_) -> io.println("[-OK-] Client-1 joined r/programming")
+    Error(e) -> io.println("[-X-] Failed: " <> e)
   }
 
   // ========== PHASE 4: Creating Posts ==========
   print_separator()
-  io.println("📄 PHASE 4: Creating Posts")
+  io.println("------- PHASE 4: Creating Posts -------")
   print_separator()
 
-  io.println("\n[Alice's Client] Creating post in r/gleam...")
+  io.println("\n[-Client-1-] Creating post in r/gleam...")
   let alice_post = case
     create_post(
       client,
-      alice_id,
+      client1_id,
       gleam_sub,
       "Why I love Gleam",
       "Gleam is an amazing language with great type safety!",
     )
   {
     Ok(id) -> {
-      io.println("✅ Created post with ID: " <> id)
+      io.println("[-OK-] Created post with ID: " <> id)
       id
     }
     Error(e) -> {
-      io.println("❌ Failed: " <> e)
+      io.println("[-X-] Failed: " <> e)
       ""
     }
   }
 
-  io.println("\n[Bob's Client] Creating post in r/programming...")
+  io.println("\n[-Client-2-] Creating post in r/programming...")
   let bob_post = case
     create_post(
       client,
-      bob_id,
+      client2_id,
       prog_sub,
       "Best practices for REST APIs",
       "Let's discuss how to design great REST APIs...",
     )
   {
     Ok(id) -> {
-      io.println("✅ Created post with ID: " <> id)
+      io.println("[-OK-] Created post with ID: " <> id)
       id
     }
     Error(e) -> {
-      io.println("❌ Failed: " <> e)
+      io.println("[-X-] Failed: " <> e)
       ""
     }
   }
 
   // ========== PHASE 5: Voting ==========
   print_separator()
-  io.println("👍 PHASE 5: Voting on Posts")
+  io.println("------- PHASE 5: Voting on Posts -------")
   print_separator()
 
-  io.println("\n[Bob's Client] Upvoting Alice's post...")
+  io.println("\n[-Client-2-] Upvoting Client-1's post...")
   case upvote_post(client, alice_post) {
-    Ok(_) -> io.println("✅ Bob upvoted Alice's post")
-    Error(e) -> io.println("❌ Failed: " <> e)
+    Ok(_) -> io.println("[-OK-] Client-2 upvoted Client-1's post")
+    Error(e) -> io.println("[-X-] Failed: " <> e)
   }
 
-  io.println("\n[Charlie's Client] Upvoting Alice's post...")
+  io.println("\n[-Client-3-] Upvoting Client-1's post...")
   case upvote_post(client, alice_post) {
-    Ok(_) -> io.println("✅ Charlie upvoted Alice's post")
-    Error(e) -> io.println("❌ Failed: " <> e)
+    Ok(_) -> io.println("[-OK-] Client-3 upvoted Client-1's post")
+    Error(e) -> io.println("[-X-] Failed: " <> e)
   }
 
-  io.println("\n[Alice's Client] Upvoting Bob's post...")
+  io.println("\n[-Client-1-] Upvoting Client-2's post...")
   case upvote_post(client, bob_post) {
-    Ok(_) -> io.println("✅ Alice upvoted Bob's post")
-    Error(e) -> io.println("❌ Failed: " <> e)
+    Ok(_) -> io.println("[-OK-] Client-1 upvoted Client-2's post")
+    Error(e) -> io.println("[-X-] Failed: " <> e)
   }
 
   // ========== PHASE 6: Comments ==========
   print_separator()
-  io.println("💬 PHASE 6: Creating Comments")
+  io.println("------- PHASE 6: Creating Comments -------")
   print_separator()
 
-  io.println("\n[Bob's Client] Commenting on Alice's post...")
+  io.println("\n[-Client-2-] Commenting on Client-1's post...")
   let bob_comment = case
-    create_comment(client, bob_id, alice_post, "Great post! I totally agree.")
+    create_comment(
+      client,
+      client2_id,
+      alice_post,
+      "Great post! I totally agree.",
+    )
   {
     Ok(id) -> {
-      io.println("✅ Created comment with ID: " <> id)
+      io.println("[-OK-] Created comment with ID: " <> id)
       id
     }
     Error(e) -> {
-      io.println("❌ Failed: " <> e)
+      io.println("[-X-] Failed: " <> e)
       ""
     }
   }
 
-  io.println("\n[Charlie's Client] Commenting on Alice's post...")
+  io.println("\n[-Client-3-] Commenting on Client-1's post...")
   case
     create_comment(
       client,
@@ -751,90 +756,95 @@ pub fn run_demo(base_url: String) {
       "This is exactly what I needed to hear!",
     )
   {
-    Ok(id) -> io.println("✅ Created comment with ID: " <> id)
-    Error(e) -> io.println("❌ Failed: " <> e)
+    Ok(id) -> io.println("[-OK-] Created comment with ID: " <> id)
+    Error(e) -> io.println("[-X-] Failed: " <> e)
   }
 
-  io.println("\n[Alice's Client] Upvoting Bob's comment...")
+  io.println("\n[-Client-1-] Upvoting Client-2's comment...")
   case upvote_comment(client, bob_comment) {
-    Ok(_) -> io.println("✅ Alice upvoted Bob's comment")
-    Error(e) -> io.println("❌ Failed: " <> e)
+    Ok(_) -> io.println("[-OK-] Client-1 upvoted Client-2's comment")
+    Error(e) -> io.println("[-X-] Failed: " <> e)
   }
 
   // ========== PHASE 7: Direct Messages ==========
   print_separator()
-  io.println("📨 PHASE 7: Sending Direct Messages")
+  io.println("------- PHASE 7: Sending Direct Messages -------")
   print_separator()
 
-  io.println("\n[Bob's Client] Sending message to Alice...")
+  io.println("\n[-Client-2-] Sending message to Client-1...")
   case
-    send_message(client, bob_id, alice_id, "Hey Alice, great post on Gleam!")
+    send_message(
+      client,
+      client2_id,
+      client1_id,
+      "Hey Client-1, great post on Gleam!",
+    )
   {
-    Ok(_) -> io.println("✅ Message sent successfully")
-    Error(e) -> io.println("❌ Failed: " <> e)
+    Ok(_) -> io.println("[-OK-] Message sent successfully")
+    Error(e) -> io.println("[-X-] Failed: " <> e)
   }
 
-  io.println("\n[Charlie's Client] Sending message to Alice...")
+  io.println("\n[-Client-3-] Sending message to Client-1...")
   case
     send_message(
       client,
       charlie_id,
-      alice_id,
-      "Alice, would love to collaborate on a Gleam project!",
+      client1_id,
+      "Client-1, would love to collaborate on a Gleam project!",
     )
   {
-    Ok(_) -> io.println("✅ Message sent successfully")
-    Error(e) -> io.println("❌ Failed: " <> e)
+    Ok(_) -> io.println("[-OK-] Message sent successfully")
+    Error(e) -> io.println("[-X-] Failed: " <> e)
   }
 
   // ========== PHASE 8: Viewing Data ==========
   print_separator()
-  io.println("👀 PHASE 8: Viewing Data")
+  io.println("------- PHASE 8: Viewing Data -------")
   print_separator()
 
-  io.println("\n[Alice's Client] Getting user info...")
-  case get_user(client, alice_id) {
-    Ok(data) -> io.println("✅ User data: " <> data)
-    Error(e) -> io.println("❌ Failed: " <> e)
+  io.println("\n[-Client-1-] Getting user info...")
+  case get_user(client, client1_id) {
+    Ok(data) -> io.println("[-OK-] User data: " <> data)
+    Error(e) -> io.println("[-X-] Failed: " <> e)
   }
 
-  io.println("\n[Alice's Client] Checking messages...")
-  case get_user_messages(client, alice_id) {
-    Ok(data) -> io.println("✅ Messages: " <> data)
-    Error(e) -> io.println("❌ Failed: " <> e)
+  io.println("\n[-Client-1-] Checking messages...")
+  case get_user_messages(client, client1_id) {
+    Ok(data) -> io.println("[-OK-] Messages: " <> data)
+    Error(e) -> io.println("[-X-] Failed: " <> e)
   }
 
-  io.println("\n[Bob's Client] Getting feed...")
-  case get_user_feed(client, bob_id) {
-    Ok(data) -> io.println("✅ Feed data: " <> data)
-    Error(e) -> io.println("❌ Failed: " <> e)
+  io.println("\n[-Client-2-] Getting feed...")
+  case get_user_feed(client, client2_id) {
+    Ok(data) -> io.println("[-OK-] Feed data: " <> data)
+    Error(e) -> io.println("[-X-] Failed: " <> e)
   }
 
-  io.println("\n[Any Client] Getting post details...")
+  io.println("\n[-Any Client-] Getting post details...")
   case get_post(client, alice_post) {
-    Ok(data) -> io.println("✅ Post data: " <> data)
-    Error(e) -> io.println("❌ Failed: " <> e)
+    Ok(data) -> io.println("[-OK-] Post data: " <> data)
+    Error(e) -> io.println("[-X-] Failed: " <> e)
   }
 
-  io.println("\n[Any Client] Listing all subregretdits...")
+  io.println("\n[-Any Client-] Listing all subregretdits...")
   case get_all_subregretdits(client) {
-    Ok(data) -> io.println("✅ Subregretdits: " <> data)
-    Error(e) -> io.println("❌ Failed: " <> e)
+    Ok(data) -> io.println("[-OK-] Subregretdits: " <> data)
+    Error(e) -> io.println("[-X-] Failed: " <> e)
   }
 
   // ========== PHASE 9: Platform Statistics ==========
   print_separator()
-  io.println("📊 PHASE 9: Platform Statistics")
+  io.println("------- PHASE 9: Platform Statistics -------")
   print_separator()
 
-  io.println("\n[Any Client] Getting platform stats...")
+  io.println("\n[-Any Client-] Getting platform stats...")
   case get_stats(client) {
-    Ok(data) -> io.println("✅ Platform stats: " <> data)
-    Error(e) -> io.println("❌ Failed: " <> e)
+    Ok(data) -> io.println("[-OK-] Platform stats: " <> data)
+    Error(e) -> io.println("[-X-] Failed: " <> e)
   }
 
   print_separator()
-  io.println("✨ DEMO COMPLETE!")
+  io.println("------- DEMO COMPLETE -------")
   io.println("All API endpoints tested successfully with multiple clients")
   print_separator()
 }
@@ -844,7 +854,7 @@ pub fn run_demo(base_url: String) {
 pub fn main() {
   io.println("Starting Regretdit CLI Client...")
   // Replace SERVER_IP with your actual server IP address
-  let server_ip = "192.168.1.169"
+  let server_ip = "192.168.0.169"
   // Example IP
   let server_url = "http://" <> server_ip <> ":8080"
   io.println("Connecting to API at " <> server_url)
