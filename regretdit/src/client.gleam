@@ -843,12 +843,16 @@ pub fn run_demo(base_url: String) {
 
 pub fn main() {
   io.println("Starting Regretdit CLI Client...")
-  io.println("Connecting to API at http://localhost:8080")
+  // Replace SERVER_IP with your actual server IP address
+  let server_ip = "192.168.1.169"
+  // Example IP
+  let server_url = "http://" <> server_ip <> ":8080"
+  io.println("Connecting to API at " <> server_url)
   io.println("Make sure the API server is running first!")
   io.println("")
 
   // Give server time to be ready
   process.sleep(1000)
 
-  run_demo("http://localhost:8080")
+  run_demo(server_url)
 }

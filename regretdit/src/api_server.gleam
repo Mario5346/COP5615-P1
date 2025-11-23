@@ -638,10 +638,11 @@ pub fn start_server(engine: Subject(EngineMessage), port: Int) {
   let assert Ok(_) =
     mist.new(handler)
     |> mist.port(port)
+    |> mist.bind("0.0.0.0")
     |> mist.start
 
   io.println(
-    "🚀 Regretdit API Server started on http://localhost:" <> int.to_string(port),
+    "🚀 Regretdit API Server started on http://0.0.0.0:" <> int.to_string(port),
   )
   io.println("📖 API Documentation:")
   io.println("   POST   /api/users                    - Register user")
