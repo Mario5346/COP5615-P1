@@ -2,13 +2,16 @@
 import gleam/erlang/process
 import gleam/http
 import gleam/http/request
-import gleam/http/response
+
+// import gleam/http/response
 import gleam/httpc
 import gleam/int
 import gleam/io
-import gleam/json
+
+// import gleam/json
 import gleam/list
-import gleam/option.{None, Some}
+
+// import gleam/option.{None, Some}
 import gleam/result
 import gleam/string
 
