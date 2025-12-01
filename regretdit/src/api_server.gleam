@@ -642,9 +642,10 @@ pub fn start_server(engine: Subject(EngineMessage), port: Int) {
     |> mist.start
 
   io.println(
-    "🚀 Regretdit API Server started on http://0.0.0.0:" <> int.to_string(port),
+    "[-OK-] Regretdit API Server started on http://0.0.0.0:"
+    <> int.to_string(port),
   )
-  io.println("📖 API Documentation:")
+  io.println("---- API Documentation:")
   io.println("   POST   /api/users                    - Register user")
   io.println("   GET    /api/users/:id                - Get user")
   io.println("   GET    /api/users/:id/feed           - Get user feed")
@@ -666,7 +667,7 @@ pub fn main() {
       process.sleep_forever()
     }
     Error(_) -> {
-      io.println("❌ Failed to start Regretdit engine")
+      io.println("[-X-] Failed to start Regretdit engine")
       Nil
     }
   }

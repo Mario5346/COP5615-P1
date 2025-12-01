@@ -548,9 +548,9 @@ pub fn run_demo(base_url: String) {
   io.println("\n-----|| REGRETDIT CLI CLIENT DEMO ||-----")
   io.println("Demonstrating all API functionality with multiple clients")
 
-  // ========== PHASE 1: User Registration ==========
+  // ========== 1: User Registration ==========
   print_separator()
-  io.println("------- PHASE 1: Registering Users -------")
+  io.println("------- 1: Registering Users -------")
   print_separator()
 
   io.println("\n[-Client 1-] Registering user 'Client-1'...")
@@ -589,9 +589,9 @@ pub fn run_demo(base_url: String) {
     }
   }
 
-  // ========== PHASE 2: Creating Communities ==========
+  // ========== 2: Creating Communities ==========
   print_separator()
-  io.println("------- PHASE 2: Creating Subregretdits -------")
+  io.println("------- 2: Creating Subregretdits -------")
   print_separator()
 
   io.println("\n[-Client-1-] Creating r/gleam...")
@@ -632,9 +632,9 @@ pub fn run_demo(base_url: String) {
     }
   }
 
-  // ========== PHASE 3: Joining Communities ==========
+  // ========== 3: Joining Communities ==========
   print_separator()
-  io.println("------- PHASE 3: Users Joining Subregretdits -------")
+  io.println("------- 3: Users Joining Subregretdits -------")
   print_separator()
 
   io.println("\n[-Client-2-] Joining r/gleam...")
@@ -655,9 +655,9 @@ pub fn run_demo(base_url: String) {
     Error(e) -> io.println("[-X-] Failed: " <> e)
   }
 
-  // ========== PHASE 4: Creating Posts ==========
+  // ========== 4: Creating Posts ==========
   print_separator()
-  io.println("------- PHASE 4: Creating Posts -------")
+  io.println("------- 4: Creating Posts -------")
   print_separator()
 
   io.println("\n[-Client-1-] Creating post in r/gleam...")
@@ -700,9 +700,9 @@ pub fn run_demo(base_url: String) {
     }
   }
 
-  // ========== PHASE 5: Voting ==========
+  // ========== 5: Voting ==========
   print_separator()
-  io.println("------- PHASE 5: Voting on Posts -------")
+  io.println("------- 5: Voting on Posts -------")
   print_separator()
 
   io.println("\n[-Client-2-] Upvoting Client-1's post...")
@@ -723,9 +723,9 @@ pub fn run_demo(base_url: String) {
     Error(e) -> io.println("[-X-] Failed: " <> e)
   }
 
-  // ========== PHASE 6: Comments ==========
+  // ========== 6: Comments ==========
   print_separator()
-  io.println("------- PHASE 6: Creating Comments -------")
+  io.println("------- 6: Creating Comments -------")
   print_separator()
 
   io.println("\n[-Client-2-] Commenting on Client-1's post...")
@@ -766,9 +766,9 @@ pub fn run_demo(base_url: String) {
     Error(e) -> io.println("[-X-] Failed: " <> e)
   }
 
-  // ========== PHASE 7: Direct Messages ==========
+  // ========== 7: Direct Messages ==========
   print_separator()
-  io.println("------- PHASE 7: Sending Direct Messages -------")
+  io.println("------- 7: Sending Direct Messages -------")
   print_separator()
 
   io.println("\n[-Client-2-] Sending message to Client-1...")
@@ -797,9 +797,9 @@ pub fn run_demo(base_url: String) {
     Error(e) -> io.println("[-X-] Failed: " <> e)
   }
 
-  // ========== PHASE 8: Viewing Data ==========
+  // ========== 8: Viewing Data ==========
   print_separator()
-  io.println("------- PHASE 8: Viewing Data -------")
+  io.println("------- 8: Viewing Data -------")
   print_separator()
 
   io.println("\n[-Client-1-] Getting user info...")
@@ -832,9 +832,9 @@ pub fn run_demo(base_url: String) {
     Error(e) -> io.println("[-X-] Failed: " <> e)
   }
 
-  // ========== PHASE 9: Platform Statistics ==========
+  // ========== 9: Platform Statistics ==========
   print_separator()
-  io.println("------- PHASE 9: Platform Statistics -------")
+  io.println("------- 9: Platform Statistics -------")
   print_separator()
 
   io.println("\n[-Any Client-] Getting platform stats...")
