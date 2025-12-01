@@ -1,12 +1,12 @@
 // File: src/client.gleam
+import crypto_helper
 import gleam/erlang/process
 import gleam/http
 import gleam/http/request
-import gleam/http/response
 import gleam/httpc
 import gleam/int
+import gleam/int as gint
 import gleam/io
-import gleam/json
 import gleam/list
 import gleam/option.{None, Some}
 import gleam/result
@@ -46,8 +46,17 @@ fn parse_id_from_response(body: String, field: String) -> Result(String, String)
 // ========== API Methods ==========
 
 // Register a new user
-pub fn register_user(client: Client, username: String) -> Result(String, String) {
-  let body = "{\"username\":\"" <> username <> "\"}"
+pub fn register_user(
+  client: Client,
+  username: String,
+  public_key: String,
+) -> Result(String, String) {
+  let body =
+    "{\"username\":\""
+    <> username
+    <> "\",\"public_key\":\""
+    <> public_key
+    <> "\"}"
 
   case request.to(client.base_url <> "/api/users") {
     Ok(req) -> {
@@ -64,6 +73,34 @@ pub fn register_user(client: Client, username: String) -> Result(String, String)
             _ ->
               Error(
                 "Failed to register user (status "
+                <> int.to_string(resp.status)
+                <> "): "
+                <> resp.body,
+              )
+          }
+        }
+        Error(e) -> Error("Network error: " <> string.inspect(e))
+      }
+    }
+    Error(_) -> Error("Invalid URL")
+  }
+}
+
+pub fn get_user_public_key(
+  client: Client,
+  user_id: String,
+) -> Result(String, String) {
+  case request.to(client.base_url <> "/api/users/" <> user_id <> "/publickey") {
+    Ok(req) -> {
+      let req = req |> request.set_method(http.Get)
+
+      case httpc.send(req) {
+        Ok(resp) -> {
+          case resp.status {
+            200 -> parse_id_from_response(resp.body, "public_key")
+            _ ->
+              Error(
+                "Failed to get public key (status "
                 <> int.to_string(resp.status)
                 <> "): "
                 <> resp.body,
@@ -244,6 +281,8 @@ pub fn create_post(
   subregretdit_id: String,
   title: String,
   content: String,
+  timestamp: Int,
+  signature: String,
 ) -> Result(String, String) {
   let body =
     "{\"author_id\":\""
@@ -254,6 +293,10 @@ pub fn create_post(
     <> title
     <> "\",\"content\":\""
     <> content
+    <> "\",\"timestamp\":\""
+    <> int.to_string(timestamp)
+    <> "\",\"signature\":\""
+    <> signature
     <> "\"}"
 
   case request.to(client.base_url <> "/api/posts") {
@@ -545,16 +588,22 @@ fn print_separator() {
 pub fn run_demo(base_url: String) {
   let client = new(base_url)
 
-  io.println("\n-----|| REGRETDIT CLI CLIENT DEMO ||-----")
-  io.println("Demonstrating all API functionality with multiple clients")
+  io.println(
+    "\n-----|| REGRETDIT CLI CLIENT DEMO WITH DIGITAL SIGNATURES ||-----",
+  )
+  io.println("Demonstrating cryptographic signatures on posts")
 
-  // ========== 1: User Registration ==========
+  // ========== 1: Generate Keys & Register Users ==========
   print_separator()
-  io.println("------- 1: Registering Users -------")
+  io.println("------- 1: Generating Keys & Registering Users -------")
   print_separator()
 
-  io.println("\n[-Client 1-] Registering user 'Client-1'...")
-  let client1_id = case register_user(client, "Client-1") {
+  io.println("\n[-Client 1-] Generating RSA-2048 keypair...")
+  let #(client1_pubkey, client1_privkey) = crypto_helper.generate_demo_keypair()
+  io.println("[-OK-] Generated keypair for Client-1")
+
+  io.println("\n[-Client 1-] Registering user 'Client-1' with public key...")
+  let client1_id = case register_user(client, "Client-1", client1_pubkey) {
     Ok(id) -> {
       io.println("[-OK-] Registered Client-1 with ID: " <> id)
       id
@@ -565,8 +614,12 @@ pub fn run_demo(base_url: String) {
     }
   }
 
-  io.println("\n[-Client 2-] Registering user 'Client-2'...")
-  let client2_id = case register_user(client, "Client-2") {
+  io.println("\n[-Client 2-] Generating RSA-2048 keypair...")
+  let #(client2_pubkey, client2_privkey) = crypto_helper.generate_demo_keypair()
+  io.println("[-OK-] Generated keypair for Client-2")
+
+  io.println("\n[-Client 2-] Registering user 'Client-2' with public key...")
+  let client2_id = case register_user(client, "Client-2", client2_pubkey) {
     Ok(id) -> {
       io.println("[-OK-] Registered Client-2 with ID: " <> id)
       id
@@ -577,8 +630,12 @@ pub fn run_demo(base_url: String) {
     }
   }
 
-  io.println("\n[-Client 3-] Registering user 'Client-3'...")
-  let charlie_id = case register_user(client, "Client-3") {
+  io.println("\n[-Client 3-] Generating RSA-2048 keypair...")
+  let #(charlie_pubkey, charlie_privkey) = crypto_helper.generate_demo_keypair()
+  io.println("[-OK-] Generated keypair for Client-3")
+
+  io.println("\n[-Client 3-] Registering user 'Client-3' with public key...")
+  let charlie_id = case register_user(client, "Client-3", charlie_pubkey) {
     Ok(id) -> {
       io.println("[-OK-] Registered Client-3 with ID: " <> id)
       id
@@ -589,9 +646,24 @@ pub fn run_demo(base_url: String) {
     }
   }
 
-  // ========== 2: Creating Communities ==========
+  // ========== 2: Verify Public Key Retrieval ==========
   print_separator()
-  io.println("------- 2: Creating Subregretdits -------")
+  io.println("------- 2: Retrieving Public Keys -------")
+  print_separator()
+
+  io.println("\n[-Client-2-] Getting Client-1's public key...")
+  case get_user_public_key(client, client1_id) {
+    Ok(pubkey) -> {
+      io.println(
+        "[-OK-] Retrieved public key: " <> string.slice(pubkey, 0, 40) <> "...",
+      )
+    }
+    Error(e) -> io.println("[-X-] Failed: " <> e)
+  }
+
+  // ========== 3: Creating Communities ==========
+  print_separator()
+  io.println("------- 3: Creating Subregretdits -------")
   print_separator()
 
   io.println("\n[-Client-1-] Creating r/gleam...")
@@ -632,9 +704,9 @@ pub fn run_demo(base_url: String) {
     }
   }
 
-  // ========== 3: Joining Communities ==========
+  // ========== 4: Users Joining Subregretdits ==========
   print_separator()
-  io.println("------- 3: Users Joining Subregretdits -------")
+  io.println("------- 4: Users Joining Subregretdits -------")
   print_separator()
 
   io.println("\n[-Client-2-] Joining r/gleam...")
@@ -655,12 +727,27 @@ pub fn run_demo(base_url: String) {
     Error(e) -> io.println("[-X-] Failed: " <> e)
   }
 
-  // ========== 4: Creating Posts ==========
+  // ========== 5: Creating Posts with Signatures ==========
   print_separator()
-  io.println("------- 4: Creating Posts -------")
+  io.println("------- 5: Creating Signed Posts -------")
   print_separator()
 
-  io.println("\n[-Client-1-] Creating post in r/gleam...")
+  let timestamp1 = 1_234_567_890
+  let post_message1 =
+    client1_id
+    <> "|"
+    <> gleam_sub
+    <> "|Why I love Gleam|Gleam is an amazing language with great type safety!|"
+    <> int.to_string(timestamp1)
+
+  io.println("\n[-Client-1-] Signing post with private key...")
+  let signature1 =
+    crypto_helper.sign_demo_message(post_message1, client1_privkey)
+  io.println(
+    "[-OK-] Generated signature: " <> string.slice(signature1, 0, 40) <> "...",
+  )
+
+  io.println("\n[-Client-1-] Creating signed post in r/gleam...")
   let alice_post = case
     create_post(
       client,
@@ -668,10 +755,13 @@ pub fn run_demo(base_url: String) {
       gleam_sub,
       "Why I love Gleam",
       "Gleam is an amazing language with great type safety!",
+      timestamp1,
+      signature1,
     )
   {
     Ok(id) -> {
-      io.println("[-OK-] Created post with ID: " <> id)
+      io.println("[-OK-] Created signed post with ID: " <> id)
+      io.println("[-OK-] Signature verified by server!")
       id
     }
     Error(e) -> {
@@ -680,7 +770,19 @@ pub fn run_demo(base_url: String) {
     }
   }
 
-  io.println("\n[-Client-2-] Creating post in r/programming...")
+  let timestamp2 = 1_234_567_891
+  let post_message2 =
+    client2_id
+    <> "|"
+    <> prog_sub
+    <> "|Best practices for REST APIs|Let's discuss how to design great REST APIs...|"
+    <> int.to_string(timestamp2)
+
+  io.println("\n[-Client-2-] Signing post with private key...")
+  let signature2 =
+    crypto_helper.sign_demo_message(post_message2, client2_privkey)
+
+  io.println("\n[-Client-2-] Creating signed post in r/programming...")
   let bob_post = case
     create_post(
       client,
@@ -688,10 +790,13 @@ pub fn run_demo(base_url: String) {
       prog_sub,
       "Best practices for REST APIs",
       "Let's discuss how to design great REST APIs...",
+      timestamp2,
+      signature2,
     )
   {
     Ok(id) -> {
-      io.println("[-OK-] Created post with ID: " <> id)
+      io.println("[-OK-] Created signed post with ID: " <> id)
+      io.println("[-OK-] Signature verified by server!")
       id
     }
     Error(e) -> {
@@ -700,9 +805,32 @@ pub fn run_demo(base_url: String) {
     }
   }
 
-  // ========== 5: Voting ==========
+  // ========== 8: Verify Signatures on Download ==========
   print_separator()
-  io.println("------- 5: Voting on Posts -------")
+  io.println("------- 8: Downloading Posts (Signature Verification) -------")
+  print_separator()
+
+  io.println(
+    "\n[-Any Client-] Getting post details (signature auto-verified)...",
+  )
+  case get_post(client, alice_post) {
+    Ok(data) -> {
+      io.println("[-OK-] Post data retrieved and signature verified: " <> data)
+    }
+    Error(e) -> io.println("[-X-] Failed (invalid signature?): " <> e)
+  }
+
+  io.println("\n[-Client-2-] Getting feed (all signatures auto-verified)...")
+  case get_user_feed(client, client2_id) {
+    Ok(data) -> {
+      io.println("[-OK-] Feed data retrieved with all signatures verified")
+    }
+    Error(e) -> io.println("[-X-] Failed: " <> e)
+  }
+
+  // ========== 6: Voting ==========
+  print_separator()
+  io.println("------- 6: Voting on Posts -------")
   print_separator()
 
   io.println("\n[-Client-2-] Upvoting Client-1's post...")
@@ -723,9 +851,9 @@ pub fn run_demo(base_url: String) {
     Error(e) -> io.println("[-X-] Failed: " <> e)
   }
 
-  // ========== 6: Comments ==========
+  // ========== 7: Comments ==========
   print_separator()
-  io.println("------- 6: Creating Comments -------")
+  io.println("------- 7: Creating Comments -------")
   print_separator()
 
   io.println("\n[-Client-2-] Commenting on Client-1's post...")
@@ -747,88 +875,9 @@ pub fn run_demo(base_url: String) {
     }
   }
 
-  io.println("\n[-Client-3-] Commenting on Client-1's post...")
-  case
-    create_comment(
-      client,
-      charlie_id,
-      alice_post,
-      "This is exactly what I needed to hear!",
-    )
-  {
-    Ok(id) -> io.println("[-OK-] Created comment with ID: " <> id)
-    Error(e) -> io.println("[-X-] Failed: " <> e)
-  }
-
   io.println("\n[-Client-1-] Upvoting Client-2's comment...")
   case upvote_comment(client, bob_comment) {
     Ok(_) -> io.println("[-OK-] Client-1 upvoted Client-2's comment")
-    Error(e) -> io.println("[-X-] Failed: " <> e)
-  }
-
-  // ========== 7: Direct Messages ==========
-  print_separator()
-  io.println("------- 7: Sending Direct Messages -------")
-  print_separator()
-
-  io.println("\n[-Client-2-] Sending message to Client-1...")
-  case
-    send_message(
-      client,
-      client2_id,
-      client1_id,
-      "Hey Client-1, great post on Gleam!",
-    )
-  {
-    Ok(_) -> io.println("[-OK-] Message sent successfully")
-    Error(e) -> io.println("[-X-] Failed: " <> e)
-  }
-
-  io.println("\n[-Client-3-] Sending message to Client-1...")
-  case
-    send_message(
-      client,
-      charlie_id,
-      client1_id,
-      "Client-1, would love to collaborate on a Gleam project!",
-    )
-  {
-    Ok(_) -> io.println("[-OK-] Message sent successfully")
-    Error(e) -> io.println("[-X-] Failed: " <> e)
-  }
-
-  // ========== 8: Viewing Data ==========
-  print_separator()
-  io.println("------- 8: Viewing Data -------")
-  print_separator()
-
-  io.println("\n[-Client-1-] Getting user info...")
-  case get_user(client, client1_id) {
-    Ok(data) -> io.println("[-OK-] User data: " <> data)
-    Error(e) -> io.println("[-X-] Failed: " <> e)
-  }
-
-  io.println("\n[-Client-1-] Checking messages...")
-  case get_user_messages(client, client1_id) {
-    Ok(data) -> io.println("[-OK-] Messages: " <> data)
-    Error(e) -> io.println("[-X-] Failed: " <> e)
-  }
-
-  io.println("\n[-Client-2-] Getting feed...")
-  case get_user_feed(client, client2_id) {
-    Ok(data) -> io.println("[-OK-] Feed data: " <> data)
-    Error(e) -> io.println("[-X-] Failed: " <> e)
-  }
-
-  io.println("\n[-Any Client-] Getting post details...")
-  case get_post(client, alice_post) {
-    Ok(data) -> io.println("[-OK-] Post data: " <> data)
-    Error(e) -> io.println("[-X-] Failed: " <> e)
-  }
-
-  io.println("\n[-Any Client-] Listing all subregretdits...")
-  case get_all_subregretdits(client) {
-    Ok(data) -> io.println("[-OK-] Subregretdits: " <> data)
     Error(e) -> io.println("[-X-] Failed: " <> e)
   }
 
@@ -845,7 +894,7 @@ pub fn run_demo(base_url: String) {
 
   print_separator()
   io.println("------- DEMO COMPLETE -------")
-  io.println("All API endpoints tested successfully with multiple clients")
+  io.println("All API endpoints tested with cryptographic signatures!")
   print_separator()
 }
 

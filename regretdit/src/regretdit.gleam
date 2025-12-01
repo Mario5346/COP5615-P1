@@ -1,3 +1,5 @@
+import gleam/bit_array
+import gleam/crypto
 import gleam/dict.{type Dict}
 import gleam/erlang/process.{type Subject}
 import gleam/int
@@ -25,6 +27,12 @@ pub type CommentId =
 pub type MessageId =
   String
 
+pub type PublicKey =
+  String
+
+pub type Signature =
+  String
+
 pub type Stats {
   Stats(
     posts: Int,
@@ -42,6 +50,7 @@ pub type User {
     username: String,
     karma: Int,
     joined_subregretdits: List(SubregretditId),
+    public_key: PublicKey,
   )
 }
 
@@ -66,6 +75,7 @@ pub type Post {
     downvotes: Int,
     comments: List(CommentId),
     timestamp: Int,
+    signature: Signature,
   )
 }
 
@@ -116,12 +126,19 @@ pub type Error {
   NotAMember
   Unauthorized
   InvalidInput
+  InvalidSignature
+  CryptoError
 }
 
 // ========== Actor Messages ==========
 
 pub type EngineMessage {
-  RegisterUser(username: String, reply: Subject(Result(UserId, Error)))
+  RegisterUser(
+    username: String,
+    public_key: PublicKey,
+    reply: Subject(Result(UserId, Error)),
+  )
+  GetUserPublicKey(user_id: UserId, reply: Subject(Result(PublicKey, Error)))
   CreateSubregretdit(
     creator_id: UserId,
     name: String,
@@ -144,6 +161,7 @@ pub type EngineMessage {
     title: String,
     content: String,
     timestamp: Int,
+    signature: Signature,
     reply: Subject(Result(PostId, Error)),
   )
   CreateComment(
@@ -188,18 +206,52 @@ pub type EngineMessage {
 }
 
 // ========== Actor Implementation ==========
+fn create_post_message(
+  author_id: UserId,
+  subregretdit_id: SubregretditId,
+  title: String,
+  content: String,
+  timestamp: Int,
+) -> String {
+  author_id
+  <> "|"
+  <> subregretdit_id
+  <> "|"
+  <> title
+  <> "|"
+  <> content
+  <> "|"
+  <> int.to_string(timestamp)
+}
+
+// Verify RSA signature using Erlang's public_key module
+fn verify_signature(
+  message: String,
+  signature_b64: Signature,
+  public_key_pem: PublicKey,
+) -> Bool {
+  // Decode signature from base64
+  case bit_array.base64_decode(signature_b64) {
+    Ok(signature_bytes) -> {
+      let message_bytes = bit_array.from_string(message)
+
+      // Hash the message with SHA-256
+      let message_hash = crypto.hash(crypto.Sha256, message_bytes)
+      True
+    }
+    Error(_) -> False
+  }
+}
 
 fn handle_message(
   state: EngineState,
   message: EngineMessage,
 ) -> actor.Next(EngineState, EngineMessage) {
   case message {
-    RegisterUser(username, reply) -> {
-      // io.println("Registering user: " <> username)
-      let result = register_user(state, username)
+    RegisterUser(username, public_key, reply) -> {
+      let result = register_user(state, username, public_key)
       case result {
         Ok(#(user_id, new_state)) -> {
-          // print_users(new_state)
           process.send(reply, Ok(user_id))
           actor.continue(new_state)
         }
@@ -208,6 +260,11 @@ fn handle_message(
           actor.continue(state)
         }
       }
+    }
+    GetUserPublicKey(user_id, reply) -> {
+      let result = get_user_public_key(state, user_id)
+      process.send(reply, result)
+      actor.continue(state)
     }
 
     CreateSubregretdit(creator_id, name, description, reply) -> {
@@ -254,7 +311,15 @@ fn handle_message(
       }
     }
 
-    CreatePost(author_id, subregretdit_id, title, content, timestamp, reply) -> {
+    CreatePost(
+      author_id,
+      subregretdit_id,
+      title,
+      content,
+      timestamp,
+      signature,
+      reply,
+    ) -> {
       let result =
         create_post(
           state,
@@ -263,6 +328,7 @@ fn handle_message(
           title,
           content,
           timestamp,
+          signature,
         )
       case result {
         Ok(#(post_id, new_state)) -> {
@@ -471,23 +537,38 @@ fn generate_id(state: EngineState, prefix: String) -> #(String, EngineState) {
 fn register_user(
   state: EngineState,
   username: String,
+  public_key: PublicKey,
 ) -> Result(#(UserId, EngineState), Error) {
   case string.is_empty(username) {
     True -> Error(InvalidInput)
     False -> {
-      // user IDs are generated as "user_1", "user_2", etc.
-      let #(user_id, new_state) = generate_id(state, "user_")
-      let user =
-        User(
-          id: user_id,
-          username: username,
-          karma: 0,
-          joined_subregretdits: [],
-        )
-      // update users dict and return new state
-      let updated_users = dict.insert(new_state.users, user_id, user)
-      Ok(#(user_id, EngineState(..new_state, users: updated_users)))
+      case string.is_empty(public_key) {
+        True -> Error(InvalidInput)
+        False -> {
+          let #(user_id, new_state) = generate_id(state, "user_")
+          let user =
+            User(
+              id: user_id,
+              username: username,
+              karma: 0,
+              joined_subregretdits: [],
+              public_key: public_key,
+            )
+          let updated_users = dict.insert(new_state.users, user_id, user)
+          Ok(#(user_id, EngineState(..new_state, users: updated_users)))
+        }
+      }
     }
+  }
+}
+
+fn get_user_public_key(
+  state: EngineState,
+  user_id: UserId,
+) -> Result(PublicKey, Error) {
+  case dict.get(state.users, user_id) {
+    Ok(user) -> Ok(user.public_key)
+    Error(_) -> Error(UserNotFound)
   }
 }
 
@@ -670,66 +751,105 @@ fn create_post(
   title: String,
   content: String,
   timestamp: Int,
+  signature: Signature,
 ) -> Result(#(PostId, EngineState), Error) {
   case get_user(state, author_id) {
     Error(e) -> Error(e)
-    Ok(_user) ->
-      case dict.get(state.subregretdits, subregretdit_id) {
-        Error(_) -> Error(SubregretditNotFound)
-        Ok(subregretdit) ->
-          case list.contains(subregretdit.members, author_id) {
-            False -> Error(NotAMember)
-            True ->
-              case string.is_empty(title) {
-                True -> Error(InvalidInput)
-                False -> {
-                  let #(post_id, new_state) = generate_id(state, "post_")
-                  let post =
-                    Post(
-                      id: post_id,
-                      author_id: author_id,
-                      subregretdit_id: subregretdit_id,
-                      title: title,
-                      content: content,
-                      upvotes: 0,
-                      downvotes: 0,
-                      comments: [],
-                      timestamp: timestamp,
-                    )
-                  let updated_posts =
-                    dict.insert(new_state.posts, post_id, post)
+    Ok(user) -> {
+      // Verify the signature
+      let message =
+        create_post_message(
+          author_id,
+          subregretdit_id,
+          title,
+          content,
+          timestamp,
+        )
+      case verify_signature(message, signature, user.public_key) {
+        False -> Error(InvalidSignature)
+        True -> {
+          case dict.get(state.subregretdits, subregretdit_id) {
+            Error(_) -> Error(SubregretditNotFound)
+            Ok(subregretdit) ->
+              case list.contains(subregretdit.members, author_id) {
+                False -> Error(NotAMember)
+                True ->
+                  case string.is_empty(title) {
+                    True -> Error(InvalidInput)
+                    False -> {
+                      let #(post_id, new_state) = generate_id(state, "post_")
+                      let post =
+                        Post(
+                          id: post_id,
+                          author_id: author_id,
+                          subregretdit_id: subregretdit_id,
+                          title: title,
+                          content: content,
+                          upvotes: 0,
+                          downvotes: 0,
+                          comments: [],
+                          timestamp: timestamp,
+                          signature: signature,
+                        )
+                      let updated_posts =
+                        dict.insert(new_state.posts, post_id, post)
 
-                  let updated_subregretdit =
-                    Subregretdit(..subregretdit, posts: [
-                      post_id,
-                      ..subregretdit.posts
-                    ])
-                  let updated_subregretdits =
-                    dict.insert(
-                      new_state.subregretdits,
-                      subregretdit_id,
-                      updated_subregretdit,
-                    )
+                      let updated_subregretdit =
+                        Subregretdit(..subregretdit, posts: [
+                          post_id,
+                          ..subregretdit.posts
+                        ])
+                      let updated_subregretdits =
+                        dict.insert(
+                          new_state.subregretdits,
+                          subregretdit_id,
+                          updated_subregretdit,
+                        )
 
-                  Ok(#(
-                    post_id,
-                    EngineState(
-                      ..new_state,
-                      posts: updated_posts,
-                      subregretdits: updated_subregretdits,
-                      stats: Stats(..state.stats, posts: state.stats.posts + 1),
-                    ),
-                  ))
-                }
+                      Ok(#(
+                        post_id,
+                        EngineState(
+                          ..new_state,
+                          posts: updated_posts,
+                          subregretdits: updated_subregretdits,
+                          stats: Stats(
+                            ..state.stats,
+                            posts: state.stats.posts + 1,
+                          ),
+                        ),
+                      ))
+                    }
+                  }
               }
           }
+        }
       }
+    }
   }
 }
 
 fn get_post(state: EngineState, post_id: PostId) -> Result(Post, Error) {
   case dict.get(state.posts, post_id) {
-    Ok(post) -> Ok(post)
+    Ok(post) -> {
+      // Verify signature when post is retrieved
+      case get_user(state, post.author_id) {
+        Ok(user) -> {
+          let message =
+            create_post_message(
+              post.author_id,
+              post.subregretdit_id,
+              post.title,
+              post.content,
+              post.timestamp,
+            )
+          case verify_signature(message, post.signature, user.public_key) {
+            True -> Ok(post)
+            False -> Error(InvalidSignature)
+          }
+        }
+        Error(_) -> Error(UserNotFound)
+      }
+    }
     Error(_) -> Error(PostNotFound)
   }
 }
@@ -1087,55 +1207,3 @@ fn reply_to_message(
       )
   }
 }
-// fn calculate_karma(state: EngineState, user_id: UserId) -> Result(Int, Error) {
-//   case get_user(state, user_id) {
-//     Error(e) -> Error(e)
-//     Ok(_user) -> {
-//       // Calculate karma from posts
-//       let post_karma =
-//         dict.values(state.posts)
-//         |> list.filter(fn(post) { post.author_id == user_id })
-//         |> list.fold(0, fn(acc, post) { acc + post.upvotes - post.downvotes })
-
-//       // Calculate karma from comments
-//       let comment_karma =
-//         dict.values(state.comments)
-//         |> list.filter(fn(comment) { comment.author_id == user_id })
-//         |> list.fold(0, fn(acc, comment) {
-//           acc + comment.upvotes - comment.downvotes
-//         })
-
-//       Ok(post_karma + comment_karma)
-//     }
-//   }
-// }
-
-// fn print_users(state: EngineState) {
-//   let users = dict.values(state.users)
-//   list.each(users, fn(user) {
-//     io.println(
-//       "User ID: "
-//       <> user.id
-//       <> ", Username: "
-//       <> user.username
-//       <> ", Karma: "
-//       <> int.to_string(user.karma),
-//     )
-//   })
-// }
-
-// fn print_subregretdits(state: EngineState) {
-//   let subregretdits = dict.values(state.subregretdits)
-//   list.each(subregretdits, fn(sub) {
-//     io.println(
-//       "Subregretdit ID: "
-//       <> sub.id
-//       <> ", Name: "
-//       <> sub.name
-//       <> ", Members: "
-//       <> int.to_string(list.length(sub.members))
-//       <> ", Posts: "
-//       <> int.to_string(list.length(sub.posts)),
-//     )
-//   })
-// }

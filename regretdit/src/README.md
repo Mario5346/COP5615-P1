@@ -17,7 +17,7 @@ You should see:
 ```
 In our case, our server IP is 192.168.0.169
 
-### Step 3: Test with Multiple Clients
+### Step 2: Test with Multiple Clients
 
 **Run the Gleam demo client** (another machine):
 ```bash

@@ -18,9 +18,9 @@ import mist
 import regretdit.{
   type EngineMessage, CreateComment, CreatePost, CreateSubregretdit,
   DownvoteComment, DownvotePost, GetAllSubregretdits, GetPost, GetStats,
-  GetSubregretdit, GetUser, GetUserFeed, GetUserMessages, JoinSubregretdit,
-  LeaveSubregretdit, RegisterUser, ReplyToMessage, SendMessage, UpvoteComment,
-  UpvotePost,
+  GetSubregretdit, GetUser, GetUserFeed, GetUserMessages, GetUserPublicKey,
+  JoinSubregretdit, LeaveSubregretdit, RegisterUser, ReplyToMessage, SendMessage,
+  UpvoteComment, UpvotePost,
 }
 
 pub type ApiContext {
@@ -93,9 +93,10 @@ fn handle_register_user(
   case read_body_as_string(req) {
     Ok(body) -> {
       let username = extract_field(body, "username") |> result.unwrap("")
+      let public_key = extract_field(body, "public_key") |> result.unwrap("")
 
       let reply = process.new_subject()
-      process.send(ctx.engine, RegisterUser(username, reply))
+      process.send(ctx.engine, RegisterUser(username, public_key, reply))
 
       case process.receive(reply, 5000) {
         Ok(Ok(user_id)) -> {
@@ -112,6 +113,27 @@ fn handle_register_user(
       }
     }
     Error(_) -> error_response(400, "Invalid request body")
+  }
+}
+
+fn handle_get_user_public_key(
+  ctx: ApiContext,
+  user_id: String,
+) -> Response(mist.ResponseData) {
+  let reply = process.new_subject()
+  process.send(ctx.engine, GetUserPublicKey(user_id, reply))
+
+  case process.receive(reply, 5000) {
+    Ok(Ok(public_key)) -> {
+      let data =
+        json.object([
+          #("user_id", json.string(user_id)),
+          #("public_key", json.string(public_key)),
+        ])
+      success_response(data)
+    }
+    Ok(Error(err)) -> error_response(404, error_to_string(err))
+    Error(_) -> error_response(500, "Request timeout")
   }
 }
 
@@ -134,6 +156,7 @@ fn handle_get_user(
             "joined_subregretdits",
             json.array(user.joined_subregretdits, json.string),
           ),
+          #("public_key", json.string(user.public_key)),
         ])
       success_response(data)
     }
@@ -164,6 +187,7 @@ fn handle_get_user_feed(
             #("downvotes", json.int(post.downvotes)),
             #("comments", json.array(post.comments, json.string)),
             #("timestamp", json.int(post.timestamp)),
+            #("signature", json.string(post.signature)),
           ])
         })
       success_response(posts_json)
@@ -346,11 +370,25 @@ fn handle_create_post(
       let sub_id = extract_field(body, "subregretdit_id") |> result.unwrap("")
       let title = extract_field(body, "title") |> result.unwrap("")
       let content = extract_field(body, "content") |> result.unwrap("")
+      let signature = extract_field(body, "signature") |> result.unwrap("")
+      let timestamp =
+        extract_field(body, "timestamp")
+        |> result.unwrap("0")
+        |> int.parse
+        |> result.unwrap(0)
 
       let reply = process.new_subject()
       process.send(
         ctx.engine,
-        CreatePost(author_id, sub_id, title, content, 0, reply),
+        CreatePost(
+          author_id,
+          sub_id,
+          title,
+          content,
+          timestamp,
+          signature,
+          reply,
+        ),
       )
 
       case process.receive(reply, 5000) {
@@ -390,6 +428,8 @@ fn handle_get_post(
           #("upvotes", json.int(post.upvotes)),
           #("downvotes", json.int(post.downvotes)),
           #("comments", json.array(post.comments, json.string)),
+          #("timestamp", json.int(post.timestamp)),
+          #("signature", json.string(post.signature)),
         ])
       success_response(data)
     }
@@ -573,6 +613,8 @@ fn handle_request(
       handle_get_user_feed(ctx, user_id)
     http.Get, ["api", "users", user_id, "messages"] ->
       handle_get_user_messages(ctx, user_id)
+    http.Get, ["api", "users", user_id, "publickey"] ->
+      handle_get_user_public_key(ctx, user_id)
 
     // Subregretdits
     http.Post, ["api", "subregretdits"] -> handle_create_subregretdit(ctx, req)
@@ -626,6 +668,8 @@ fn error_to_string(err: regretdit.Error) -> String {
     regretdit.NotAMember -> "Not a member of this subregretdit"
     regretdit.Unauthorized -> "Unauthorized action"
     regretdit.InvalidInput -> "Invalid input provided"
+    regretdit.InvalidSignature -> "Invalid digital signature"
+    regretdit.CryptoError -> "Cryptographic error"
   }
 }
 
@@ -657,6 +701,7 @@ pub fn start_server(engine: Subject(EngineMessage), port: Int) {
   io.println("   POST   /api/posts/:id/upvote         - Upvote post")
   io.println("   POST   /api/comments                 - Create comment")
   io.println("   GET    /api/stats                    - Platform statistics")
+  io.println("   GET    /api/users/:id/publickey       - Get user public key")
   io.println("")
 }
 
