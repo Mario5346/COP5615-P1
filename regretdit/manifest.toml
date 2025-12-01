@@ -40,3 +40,4 @@ gleeunit = { version = ">= 1.0.0 and < 2.0.0" }
 json = { version = ">= 1.4.1 and < 2.0.0" }
 mist = { version = ">= 5.0.3 and < 6.0.0" }
 pog = { version = ">= 4.1.0 and < 5.0.0" }
+gleam_crypto = { version = ">= 1.5.1 and < 2.0.0" }

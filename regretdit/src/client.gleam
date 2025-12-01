@@ -5,10 +5,10 @@ import gleam/http
 import gleam/http/request
 import gleam/httpc
 import gleam/int
-import gleam/int as gint
 import gleam/io
 import gleam/list
-import gleam/option.{None, Some}
+
+// import gleam/option.{None, Some}
 import gleam/result
 import gleam/string
 
@@ -631,11 +631,11 @@ pub fn run_demo(base_url: String) {
   }
 
   io.println("\n[-Client 3-] Generating RSA-2048 keypair...")
-  let #(charlie_pubkey, charlie_privkey) = crypto_helper.generate_demo_keypair()
+  let #(my_pubkey, _my_privkey) = crypto_helper.generate_demo_keypair()
   io.println("[-OK-] Generated keypair for Client-3")
 
   io.println("\n[-Client 3-] Registering user 'Client-3' with public key...")
-  let charlie_id = case register_user(client, "Client-3", charlie_pubkey) {
+  let my_id = case register_user(client, "Client-3", my_pubkey) {
     Ok(id) -> {
       io.println("[-OK-] Registered Client-3 with ID: " <> id)
       id
@@ -716,7 +716,7 @@ pub fn run_demo(base_url: String) {
   }
 
   io.println("\n[-Client-3-] Joining r/gleam...")
-  case join_subregretdit(client, charlie_id, gleam_sub) {
+  case join_subregretdit(client, my_id, gleam_sub) {
     Ok(_) -> io.println("[-OK-] Client-3 joined r/gleam")
     Error(e) -> io.println("[-X-] Failed: " <> e)
   }
@@ -822,7 +822,7 @@ pub fn run_demo(base_url: String) {
 
   io.println("\n[-Client-2-] Getting feed (all signatures auto-verified)...")
   case get_user_feed(client, client2_id) {
-    Ok(data) -> {
+    Ok(_data) -> {
       io.println("[-OK-] Feed data retrieved with all signatures verified")
     }
     Error(e) -> io.println("[-X-] Failed: " <> e)

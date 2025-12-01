@@ -1,8 +1,9 @@
 // File: src/api_server.gleam
 import gleam/bit_array
 import gleam/bytes_tree
-import gleam/dict
-import gleam/dynamic
+
+// import gleam/dict
+// import gleam/dynamic
 import gleam/erlang/process.{type Subject}
 import gleam/http
 import gleam/http/request.{type Request}
@@ -11,7 +12,7 @@ import gleam/int
 import gleam/io
 import gleam/json
 import gleam/list
-import gleam/option.{None, Some}
+import gleam/option.{None}
 import gleam/result
 import gleam/string
 import mist
@@ -19,8 +20,8 @@ import regretdit.{
   type EngineMessage, CreateComment, CreatePost, CreateSubregretdit,
   DownvoteComment, DownvotePost, GetAllSubregretdits, GetPost, GetStats,
   GetSubregretdit, GetUser, GetUserFeed, GetUserMessages, GetUserPublicKey,
-  JoinSubregretdit, LeaveSubregretdit, RegisterUser, ReplyToMessage, SendMessage,
-  UpvoteComment, UpvotePost,
+  JoinSubregretdit, LeaveSubregretdit, RegisterUser, SendMessage, UpvoteComment,
+  UpvotePost,
 }
 
 pub type ApiContext {

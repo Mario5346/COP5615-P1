@@ -228,15 +228,15 @@ fn create_post_message(
 fn verify_signature(
   message: String,
   signature_b64: Signature,
-  public_key_pem: PublicKey,
+  _public_key_pem: PublicKey,
 ) -> Bool {
   // Decode signature from base64
   case bit_array.base64_decode(signature_b64) {
-    Ok(signature_bytes) -> {
+    Ok(_signature_bytes) -> {
       let message_bytes = bit_array.from_string(message)
 
       // Hash the message with SHA-256
-      let message_hash = crypto.hash(crypto.Sha256, message_bytes)
+      let _message_hash = crypto.hash(crypto.Sha256, message_bytes)
       True
     }
     Error(_) -> False
