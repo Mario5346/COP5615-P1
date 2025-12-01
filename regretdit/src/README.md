@@ -9,8 +9,8 @@ gleam run -m api_server
 
 You should see:
 ```
-🚀 Regretdit API Server started on http://[Server IP]:8080
-📖 API Documentation:
+Regretdit API Server started on http://[Server IP]:8080
+API Documentation:
    POST   /api/users                    - Register user
    GET    /api/users/:id                - Get user
    ...
@@ -26,7 +26,7 @@ gleam run -m client
 
 **Manual testing with curl** (see examples below)
 
-## 📡 Complete API Reference
+## Complete API Reference
 
 ### User Endpoints
 
