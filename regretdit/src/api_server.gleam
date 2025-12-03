@@ -1,9 +1,5 @@
-// File: src/api_server.gleam
 import gleam/bit_array
 import gleam/bytes_tree
-
-// import gleam/dict
-// import gleam/dynamic
 import gleam/erlang/process.{type Subject}
 import gleam/http
 import gleam/http/request.{type Request}
@@ -54,7 +50,6 @@ fn success_response(data: json.Json) -> Response(mist.ResponseData) {
 fn read_body_as_string(req: Request(mist.Connection)) -> Result(String, Nil) {
   case mist.read_body(req, 1_048_576) {
     Ok(req_with_body) -> {
-      // mist.read_body returns a Request(BitArray), access the body field directly
       case bit_array.to_string(req_with_body.body) {
         Ok(str) -> Ok(str)
         Error(_) -> Error(Nil)
@@ -64,12 +59,9 @@ fn read_body_as_string(req: Request(mist.Connection)) -> Result(String, Nil) {
   }
 }
 
-// Simple JSON field extraction (you could use a proper JSON decoder)
 fn extract_field(body: String, field_name: String) -> Result(String, Nil) {
-  // Look for "field_name":"value"
   case string.split(body, "\"" <> field_name <> "\":") {
     [_, rest, ..] -> {
-      // Extract the value between quotes
       case string.split(rest, "\"") {
         [_, value, ..] -> {
           case value {
@@ -607,7 +599,6 @@ fn handle_request(
   let path = request.path_segments(req)
 
   case req.method, path {
-    // Users
     http.Post, ["api", "users"] -> handle_register_user(ctx, req)
     http.Get, ["api", "users", user_id] -> handle_get_user(ctx, user_id)
     http.Get, ["api", "users", user_id, "feed"] ->
@@ -616,8 +607,6 @@ fn handle_request(
       handle_get_user_messages(ctx, user_id)
     http.Get, ["api", "users", user_id, "publickey"] ->
       handle_get_user_public_key(ctx, user_id)
-
-    // Subregretdits
     http.Post, ["api", "subregretdits"] -> handle_create_subregretdit(ctx, req)
     http.Get, ["api", "subregretdits"] -> handle_get_all_subregretdits(ctx)
     http.Get, ["api", "subregretdits", sub_id] ->
@@ -626,32 +615,21 @@ fn handle_request(
       handle_join_subregretdit(ctx, sub_id, req)
     http.Post, ["api", "subregretdits", sub_id, "leave"] ->
       handle_leave_subregretdit(ctx, sub_id, req)
-
-    // Posts
     http.Post, ["api", "posts"] -> handle_create_post(ctx, req)
     http.Get, ["api", "posts", post_id] -> handle_get_post(ctx, post_id)
     http.Post, ["api", "posts", post_id, "upvote"] ->
       handle_upvote_post(ctx, post_id)
     http.Post, ["api", "posts", post_id, "downvote"] ->
       handle_downvote_post(ctx, post_id)
-
-    // Comments
     http.Post, ["api", "comments"] -> handle_create_comment(ctx, req)
     http.Post, ["api", "comments", comment_id, "upvote"] ->
       handle_upvote_comment(ctx, comment_id)
     http.Post, ["api", "comments", comment_id, "downvote"] ->
       handle_downvote_comment(ctx, comment_id)
-
-    // Messages
     http.Post, ["api", "messages"] -> handle_send_message(ctx, req)
-
-    // Stats
     http.Get, ["api", "stats"] -> handle_get_stats(ctx)
-
-    // Health check
     http.Get, ["health"] -> json_response(200, "{\"status\":\"healthy\"}")
 
-    // 404 for unknown routes
     _, _ -> error_response(404, "Endpoint not found")
   }
 }

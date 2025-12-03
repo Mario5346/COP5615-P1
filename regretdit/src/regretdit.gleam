@@ -8,8 +8,6 @@ import gleam/option.{type Option, None, Some}
 import gleam/otp/actor
 import gleam/string
 
-// import gleam/io
-
 // ========== Types ==========
 
 pub type UserId =
@@ -224,18 +222,14 @@ fn create_post_message(
   <> int.to_string(timestamp)
 }
 
-// Verify RSA signature using Erlang's public_key module
 fn verify_signature(
   message: String,
   signature_b64: Signature,
   _public_key_pem: PublicKey,
 ) -> Bool {
-  // Decode signature from base64
   case bit_array.base64_decode(signature_b64) {
     Ok(_signature_bytes) -> {
       let message_bytes = bit_array.from_string(message)
-
-      // Hash the message with SHA-256
       let _message_hash = crypto.hash(crypto.Sha256, message_bytes)
       True
     }

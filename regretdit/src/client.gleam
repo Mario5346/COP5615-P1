@@ -1,4 +1,3 @@
-// File: src/client.gleam
 import crypto_helper
 import gleam/erlang/process
 import gleam/http
@@ -7,8 +6,6 @@ import gleam/httpc
 import gleam/int
 import gleam/io
 import gleam/list
-
-// import gleam/option.{None, Some}
 import gleam/result
 import gleam/string
 
@@ -599,7 +596,7 @@ pub fn run_demo(base_url: String) {
   print_separator()
 
   io.println("\n[-Client 1-] Generating RSA-2048 keypair...")
-  let #(client1_pubkey, client1_privkey) = crypto_helper.generate_demo_keypair()
+  let #(client1_pubkey, client1_privkey) = crypto_helper.generate_keypair()
   io.println("[-OK-] Generated keypair for Client-1")
 
   io.println("\n[-Client 1-] Registering user 'Client-1' with public key...")
@@ -615,7 +612,7 @@ pub fn run_demo(base_url: String) {
   }
 
   io.println("\n[-Client 2-] Generating RSA-2048 keypair...")
-  let #(client2_pubkey, client2_privkey) = crypto_helper.generate_demo_keypair()
+  let #(client2_pubkey, client2_privkey) = crypto_helper.generate_keypair()
   io.println("[-OK-] Generated keypair for Client-2")
 
   io.println("\n[-Client 2-] Registering user 'Client-2' with public key...")
@@ -631,7 +628,7 @@ pub fn run_demo(base_url: String) {
   }
 
   io.println("\n[-Client 3-] Generating RSA-2048 keypair...")
-  let #(my_pubkey, _my_privkey) = crypto_helper.generate_demo_keypair()
+  let #(my_pubkey, _my_privkey) = crypto_helper.generate_keypair()
   io.println("[-OK-] Generated keypair for Client-3")
 
   io.println("\n[-Client 3-] Registering user 'Client-3' with public key...")
@@ -741,8 +738,7 @@ pub fn run_demo(base_url: String) {
     <> int.to_string(timestamp1)
 
   io.println("\n[-Client-1-] Signing post with private key...")
-  let signature1 =
-    crypto_helper.sign_demo_message(post_message1, client1_privkey)
+  let signature1 = crypto_helper.sign_message(post_message1, client1_privkey)
   io.println(
     "[-OK-] Generated signature: " <> string.slice(signature1, 0, 40) <> "...",
   )
@@ -779,8 +775,7 @@ pub fn run_demo(base_url: String) {
     <> int.to_string(timestamp2)
 
   io.println("\n[-Client-2-] Signing post with private key...")
-  let signature2 =
-    crypto_helper.sign_demo_message(post_message2, client2_privkey)
+  let signature2 = crypto_helper.sign_message(post_message2, client2_privkey)
 
   io.println("\n[-Client-2-] Creating signed post in r/programming...")
   let bob_post = case
